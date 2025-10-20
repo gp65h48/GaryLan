@@ -98,8 +98,8 @@
 
     <div class="container mx-auto p-4 md:p-8">
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">RPABOM對規格書比對工具 A10版</h1>
-            <p class="mt-2 text-md text-gray-600">解析BOM、交叉比對規格書是否存在並驗證版本 (效能優化版)。</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">RPABOM對規格書比對工具 A21版</h1>
+            <p class="mt-2 text-md text-gray-600">解析BOM、交叉比對規格書是否存在並驗證版本 (通用規則優化)。</p>
         </header>
 
         <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 max-w-7xl mx-auto">
@@ -157,7 +157,6 @@
             </div>
 
             <div id="content-manual" class="hidden prose max-w-none">
-                <!-- Manual content remains the same -->
                  <h3>1. 工具簡介</h3>
                 <p>本工具旨在自動化BOM (物料清單) 與規格書的交叉比對流程。它可以讀取特定格式的BOM檔案，並與您指定的規格書資料夾進行比對，快速找出缺少的規格書，並驗證既有規格書的版本是否正確。</p>
                 
@@ -184,6 +183,7 @@
                     <li><strong><span class="text-orange-700">不一致</span></strong> (<span class="version-mismatch px-1 rounded">淺黃色背景</span>): 找到了規格書，但其版本與BOM中的「客戶版本」**不一致**。</li>
                     <li><strong><span class="text-yellow-800">N/A (底層零件)</span></strong> (<span class="missing-leaf px-1 rounded">黃色背景</span>): 這是一個**底層零件**且找不到規格書。</li>
                     <li><strong><span class="text-red-800">N/A (組件)</span></strong> (<span class="missing-assembly px-1 rounded">紅色背景</span>): 這是一個**組件** (底下還有子階) 且找不到它自身的規格書，這是最需要注意的狀況。</li>
+                    <li>備註: 如果版本狀態後方出現 <strong>(有JT檔)</strong>，代表資料夾中同時存在對應的 <code>.jt</code> 3D圖檔。如果出現 <strong>(來自XXX)</strong>，代表此匹配來自通用的家族規格書。</li>
                 </ul>
                  <h4>階層分隔行</h4>
                 <ul>
@@ -255,29 +255,63 @@
                  processButton.disabled = false;
                  statusMessage.textContent = `BOM與規格書資料夾均已選擇，可以開始分析。`;
                  const files = Array.from(specFolderInput.files);
-                 specFilesMap.clear(); // Clear previous map
+                 specFilesMap.clear();
                  buildSpecFilesMap(files.map(f => f.name));
                  specLabel.textContent = `已選取資料夾 (${specFolderInput.files.length}個檔案)`;
             }
         });
+
+        function parseSpecName(nameNoExt) {
+            let basePart = null;
+            let version = '';
+
+            const patterns = [
+                /^(\d{3}-\d{6}-(\d{3}|XXX))/, 
+                /^(\d{2}-\d{6}-(\d{2}|XX))/  
+            ];
+
+            for (const pattern of patterns) {
+                const match = nameNoExt.match(pattern);
+                if (match) {
+                    basePart = match[1];
+                    break;
+                }
+            }
+
+            if (!basePart) {
+                const match = nameNoExt.match(/^([A-Z0-9\-]+-\d+)/);
+                basePart = match ? match[1] : nameNoExt;
+            }
+
+            if (nameNoExt.length > basePart.length) {
+                const remainder = nameNoExt.substring(basePart.length);
+                const versionMatch = remainder.match(/^_?([A-Z0-9]+)/);
+                version = versionMatch ? versionMatch[1] : '';
+            }
+
+            return { basePart, version };
+        }
         
         function buildSpecFilesMap(fileNames) {
             statusMessage.textContent = '正在建立規格書索引...';
             for (const fullName of fileNames) {
+                const extension = fullName.substring(fullName.lastIndexOf('.')).toLowerCase();
                 const nameNoExt = fullName.substring(0, fullName.lastIndexOf('.')) || fullName;
-                const basePartMatch = nameNoExt.match(/^([a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+)/);
-                const basePart = basePartMatch ? basePartMatch[1] : nameNoExt;
 
-                if (!specFilesMap.has(basePart)) {
-                    specFilesMap.set(basePart, []);
-                }
+                const { basePart, version } = parseSpecName(nameNoExt);
+                const familyKey = basePart.substring(0, basePart.lastIndexOf('-'));
                 
-                let version = '';
-                if (nameNoExt.length > basePart.length) {
-                    version = nameNoExt.substring(basePart.length).replace(/^_/, '');
+                if (!familyKey) continue;
+
+                if (!specFilesMap.has(familyKey)) {
+                    specFilesMap.set(familyKey, { specs: [], jtFiles: new Set() });
                 }
 
-                specFilesMap.get(basePart).push({ name: nameNoExt, version: version });
+                if (extension === '.jt') {
+                    specFilesMap.get(familyKey).jtFiles.add(basePart);
+                } else {
+                    specFilesMap.get(familyKey).specs.push({ name: nameNoExt, basePart: basePart, version: version });
+                }
             }
         }
 
@@ -288,7 +322,6 @@
             statusMessage.textContent = '正在讀取BOM...';
             processButton.disabled = true;
 
-            // Use setTimeout to allow UI update before heavy processing
             setTimeout(async () => {
                 try {
                     const file = bomFileInput.files[0];
@@ -318,10 +351,10 @@
                     spinner.classList.add('hidden');
                     processButton.disabled = false;
                 }
-            }, 50); // 50ms delay
+            }, 50);
         });
         
-        function checkSpecFiles(parsedBom, specMap) {
+        function checkSpecFiles(parsedBom, familyMap) {
              const subAssemblyParts = new Set(parsedBom.map(item => item.MaterPN));
 
              return parsedBom.map(item => {
@@ -337,43 +370,36 @@
                  }
 
                  let foundFile = null;
-                 const possibleMatches = specMap.get(component) || [];
+                 let isUniversalMatch = false;
                  
-                 if (bomCustomerVersion) {
-                    const normalizedBomVersion = isNaN(parseInt(bomCustomerVersion, 10)) ? bomCustomerVersion.toUpperCase() : parseInt(bomCustomerVersion, 10);
-                    for (const spec of possibleMatches) {
-                        const normalizedSpecVersion = isNaN(parseInt(spec.version, 10)) ? spec.version.toUpperCase() : parseInt(spec.version, 10);
-                        if (spec.version && normalizedSpecVersion === normalizedBomVersion) {
-                           foundFile = spec;
-                           break; 
-                        }
-                    }
-                 }
-                 if (!foundFile && possibleMatches.length > 0) {
-                     foundFile = possibleMatches.find(s => s.version) || possibleMatches[0];
-                 }
-
-                 if (!foundFile) {
-                     const lastHyphenIndex = component.lastIndexOf('-');
-                     if (lastHyphenIndex > -1) {
-                         const basePart = component.substring(0, lastHyphenIndex);
-                         const universalXXKey = `${basePart}-XX`;
-                         const universalXXXKey = `${basePart}-XXX`;
-                         const universalXX = specMap.get(universalXXKey);
-                         const universalXXX = specMap.get(universalXXXKey);
-
-                         if (universalXX && universalXX.length > 0) {
-                             foundFile = universalXX[0];
-                         } else if (universalXXX && universalXXX.length > 0) {
-                             foundFile = universalXXX[0];
-                         }
+                 const familyKey = component.substring(0, component.lastIndexOf('-'));
+                 const candidates = familyMap.get(familyKey) || { specs: [], jtFiles: new Set() };
+                 
+                 for (const spec of candidates.specs) {
+                     if (spec.basePart === component) {
+                         foundFile = spec;
+                         break;
                      }
                  }
                  
+                 if (!foundFile) {
+                    const universalBase = `${familyKey}-XXX`;
+                    for (const spec of candidates.specs) {
+                       if (spec.basePart === universalBase) {
+                          foundFile = spec;
+                          isUniversalMatch = true;
+                          break;
+                       }
+                    }
+                 }
+                 
+                 const hasJtFile = candidates.jtFiles.has(component);
+
                  if (foundFile) {
                      const specVersion = foundFile.version;
                      item.foundStatusText = '已找到';
-
+                     
+                     let versionText = '';
                      if (specVersion && bomCustomerVersion) {
                         const normalize = (v) => {
                             const num = parseInt(v, 10);
@@ -384,20 +410,32 @@
 
                          if (normalizedSpecVersion === normalizedBomVersion) {
                              item.specStatusType = 'found_match';
-                             item.versionStatusText = `版本一致: ${specVersion}`;
+                             versionText = `版本一致: ${specVersion}`;
                          } else {
                              item.specStatusType = 'found_mismatch';
-                             item.versionStatusText = `不一致 (規格書:${specVersion} / BOM:${bomCustomerVersion})`;
+                             versionText = `不一致 (規格書:${specVersion} / BOM:${bomCustomerVersion})`;
                          }
                      } else {
                          item.specStatusType = 'found_unconfirmed';
-                         item.versionStatusText = '版本未確認';
+                         versionText = `版本未確認${specVersion ? ` (${specVersion})` : ''}`;
                      }
+                      if (isUniversalMatch) {
+                          versionText += ' (來自XXX)';
+                      }
+                      if (hasJtFile) {
+                        versionText += ' (有JT檔)';
+                      }
+                      item.versionStatusText = versionText;
+
                  } else {
                      const isSubAssembly = subAssemblyParts.has(component);
                      item.specStatusType = isSubAssembly ? 'missing_assembly' : 'missing_leaf';
                      item.foundStatusText = '缺少';
-                     item.versionStatusText = isSubAssembly ? 'N/A (組件)' : 'N/A (底層零件)';
+                     let versionText = isSubAssembly ? 'N/A (組件)' : 'N/A (底層零件)';
+                     if (hasJtFile) {
+                        versionText += ' (有JT檔)';
+                     }
+                     item.versionStatusText = versionText;
                  }
                  return item;
              });
