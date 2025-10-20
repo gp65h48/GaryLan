@@ -80,14 +80,26 @@
             cursor: not-allowed;
             color: #9ca3af;
         }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border-left-color: #4f46e5;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
 
     <div class="container mx-auto p-4 md:p-8">
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">RPABOM對規格書比對工具 A08版</h1>
-            <p class="mt-2 text-md text-gray-600">解析BOM、交叉比對規格書是否存在並驗證版本。</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">RPABOM對規格書比對工具 A10版</h1>
+            <p class="mt-2 text-md text-gray-600">解析BOM、交叉比對規格書是否存在並驗證版本 (效能優化版)。</p>
         </header>
 
         <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 max-w-7xl mx-auto">
@@ -105,7 +117,10 @@
                 </button>
             </div>
             
-            <div id="status-message" class="text-center text-gray-600 my-4">1. 請先上傳BOM檔案。</div>
+            <div id="status-container" class="text-center text-gray-600 my-4 flex items-center justify-center gap-2">
+                <div id="spinner" class="spinner hidden"></div>
+                <span id="status-message">1. 請先上傳BOM檔案。</span>
+            </div>
             
             <!-- Tabs Navigation -->
             <div class="mb-6">
@@ -135,14 +150,15 @@
                             </tr>
                         </thead>
                         <tbody id="results-body" class="bg-white divide-y divide-gray-200">
-                             <tr><td colspan="${OUTPUT_COLUMNS.length}" class="text-center p-8 text-gray-500">尚無分析結果。</td></tr>
+                             <tr><td id="initial-message-cell" colspan="40" class="text-center p-8 text-gray-500">尚無分析結果。</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <div id="content-manual" class="hidden prose max-w-none">
-                <h3>1. 工具簡介</h3>
+                <!-- Manual content remains the same -->
+                 <h3>1. 工具簡介</h3>
                 <p>本工具旨在自動化BOM (物料清單) 與規格書的交叉比對流程。它可以讀取特定格式的BOM檔案，並與您指定的規格書資料夾進行比對，快速找出缺少的規格書，並驗證既有規格書的版本是否正確。</p>
                 
                 <h3>2. 操作流程</h3>
@@ -186,6 +202,7 @@
 
         const processButton = document.getElementById('process-button');
         const statusMessage = document.getElementById('status-message');
+        const spinner = document.getElementById('spinner');
         
         const resultsContainer = document.getElementById('results-container');
         const resultsHeader = document.getElementById('results-header');
@@ -197,7 +214,7 @@
         const contentManual = document.getElementById('content-manual');
 
 
-        let specFileNames = [];
+        let specFilesMap = new Map();
 
         const OUTPUT_COLUMNS = [
             '尋獲狀態', '版本狀態', 'Level', 'SNP', 'MaterPN', 'POS', 'QTY', '組成用量', '主件底數', 'COMPONENT', 'DESCRIPTION', '原始UM', 'UM', 
@@ -237,49 +254,78 @@
             if (specFolderInput.files.length > 0) {
                  processButton.disabled = false;
                  statusMessage.textContent = `BOM與規格書資料夾均已選擇，可以開始分析。`;
-                 specFileNames = Array.from(specFolderInput.files).map(f => f.name);
+                 const files = Array.from(specFolderInput.files);
+                 specFilesMap.clear(); // Clear previous map
+                 buildSpecFilesMap(files.map(f => f.name));
                  specLabel.textContent = `已選取資料夾 (${specFolderInput.files.length}個檔案)`;
             }
         });
+        
+        function buildSpecFilesMap(fileNames) {
+            statusMessage.textContent = '正在建立規格書索引...';
+            for (const fullName of fileNames) {
+                const nameNoExt = fullName.substring(0, fullName.lastIndexOf('.')) || fullName;
+                const basePartMatch = nameNoExt.match(/^([a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+)/);
+                const basePart = basePartMatch ? basePartMatch[1] : nameNoExt;
+
+                if (!specFilesMap.has(basePart)) {
+                    specFilesMap.set(basePart, []);
+                }
+                
+                let version = '';
+                if (nameNoExt.length > basePart.length) {
+                    version = nameNoExt.substring(basePart.length).replace(/^_/, '');
+                }
+
+                specFilesMap.get(basePart).push({ name: nameNoExt, version: version });
+            }
+        }
 
         processButton.addEventListener('click', async () => {
-            if (bomFileInput.files.length === 0 || specFileNames.length === 0) return;
+            if (bomFileInput.files.length === 0 || specFilesMap.size === 0) return;
             
-            statusMessage.textContent = '正在讀取BOM並進行交叉比對...';
+            spinner.classList.remove('hidden');
+            statusMessage.textContent = '正在讀取BOM...';
             processButton.disabled = true;
 
-            try {
-                const file = bomFileInput.files[0];
-                const data = await file.arrayBuffer();
-                const workbook = XLSX.read(data);
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-                
-                let parsedBom = parseAndMapBom(rawData);
-                parsedBom = checkSpecFiles(parsedBom, specFileNames);
+            // Use setTimeout to allow UI update before heavy processing
+            setTimeout(async () => {
+                try {
+                    const file = bomFileInput.files[0];
+                    const data = await file.arrayBuffer();
+                    const workbook = XLSX.read(data);
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                    
+                    statusMessage.textContent = '正在解析BOM結構...';
+                    let parsedBom = parseAndMapBom(rawData);
 
-                renderResults(parsedBom);
-                
-                switchTab('results');
-                copyResultsButton.classList.remove('hidden');
-                statusMessage.textContent = '分析比對完成！';
+                    statusMessage.textContent = '正在交叉比對規格書...';
+                    parsedBom = checkSpecFiles(parsedBom, specFilesMap);
 
-            } catch (error) {
-                console.error("處理檔案時發生錯誤:", error);
-                statusMessage.textContent = `錯誤: ${error.message}`;
-            } finally {
-                processButton.disabled = false;
-            }
+                    statusMessage.textContent = '正在生成結果表格...';
+                    renderResults(parsedBom);
+                    
+                    switchTab('results');
+                    copyResultsButton.classList.remove('hidden');
+                    statusMessage.textContent = '分析比對完成！';
+
+                } catch (error) {
+                    console.error("處理檔案時發生錯誤:", error);
+                    statusMessage.textContent = `錯誤: ${error.message}`;
+                } finally {
+                    spinner.classList.add('hidden');
+                    processButton.disabled = false;
+                }
+            }, 50); // 50ms delay
         });
         
-        function checkSpecFiles(parsedBom, specFiles) {
+        function checkSpecFiles(parsedBom, specMap) {
              const subAssemblyParts = new Set(parsedBom.map(item => item.MaterPN));
-             const specFileNamesNoExt = specFiles.map(name => name.substring(0, name.lastIndexOf('.')) || name);
 
              return parsedBom.map(item => {
                  if (item.isSeparator) return item;
-
                  const component = (item.COMPONENT || '').trim();
                  const bomCustomerVersion = (item['客戶版本'] || '').trim();
 
@@ -291,29 +337,35 @@
                  }
 
                  let foundFile = null;
-
-                 const escapedComponent = component.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                 const versionRegex = new RegExp(`^${escapedComponent}(?:_?([A-Z0-9]+))?$`, 'i');
+                 const possibleMatches = specMap.get(component) || [];
                  
-                 for (const specName of specFileNamesNoExt) {
-                     const match = specName.match(versionRegex);
-                     if (match) {
-                         foundFile = { name: specName, version: (match[1] || '') };
-                         break;
-                     }
+                 if (bomCustomerVersion) {
+                    const normalizedBomVersion = isNaN(parseInt(bomCustomerVersion, 10)) ? bomCustomerVersion.toUpperCase() : parseInt(bomCustomerVersion, 10);
+                    for (const spec of possibleMatches) {
+                        const normalizedSpecVersion = isNaN(parseInt(spec.version, 10)) ? spec.version.toUpperCase() : parseInt(spec.version, 10);
+                        if (spec.version && normalizedSpecVersion === normalizedBomVersion) {
+                           foundFile = spec;
+                           break; 
+                        }
+                    }
+                 }
+                 if (!foundFile && possibleMatches.length > 0) {
+                     foundFile = possibleMatches.find(s => s.version) || possibleMatches[0];
                  }
 
                  if (!foundFile) {
                      const lastHyphenIndex = component.lastIndexOf('-');
                      if (lastHyphenIndex > -1) {
                          const basePart = component.substring(0, lastHyphenIndex);
-                         const escapedBasePart = basePart.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-                         const universalRegex = new RegExp(`^${escapedBasePart}-(XX|XXX)$`, 'i');
-                         for (const specName of specFileNamesNoExt) {
-                              if (universalRegex.test(specName)) {
-                                  foundFile = { name: specName, version: '' };
-                                  break;
-                              }
+                         const universalXXKey = `${basePart}-XX`;
+                         const universalXXXKey = `${basePart}-XXX`;
+                         const universalXX = specMap.get(universalXXKey);
+                         const universalXXX = specMap.get(universalXXXKey);
+
+                         if (universalXX && universalXX.length > 0) {
+                             foundFile = universalXX[0];
+                         } else if (universalXXX && universalXXX.length > 0) {
+                             foundFile = universalXXX[0];
                          }
                      }
                  }
@@ -392,7 +444,6 @@
                 }
                 
                 const component = String(row[colMap.COMPONENT] || '').trim();
-
                 if (!levelStr || !component) continue;
                 
                 const levelParts = levelStr.split('.');
@@ -412,24 +463,22 @@
                 });
                 
                 newRowData.MaterPN = parentComponent;
-                
                 result.push(newRowData);
             }
-
             return result;
         }
 
 
         function renderResults(parsedBom) {
-            resultsBody.innerHTML = '';
             if (parsedBom.length === 0) {
                 resultsBody.innerHTML = `<tr><td colspan="${OUTPUT_COLUMNS.length}" class="text-center p-4">無法解析出任何BOM資料。</td></tr>`;
                 return;
             }
 
+            let allRowsHTML = '';
             for (const item of parsedBom) {
                 if (item.isSeparator) {
-                    resultsBody.innerHTML += `
+                    allRowsHTML += `
                         <tr class="bg-gray-100 font-semibold">
                             <td colspan="${OUTPUT_COLUMNS.length}" class="px-4 py-2 text-gray-700">${item.Level}</td>
                         </tr>`;
@@ -471,8 +520,9 @@
                     rowHTML += `<td class="${className}">${value}</td>`;
                 });
 
-                resultsBody.innerHTML += `<tr class="${rowClass}">${rowHTML}</tr>`;
+                allRowsHTML += `<tr class="${rowClass}">${rowHTML}</tr>`;
             }
+            resultsBody.innerHTML = allRowsHTML; // Single DOM update
         }
         
         copyResultsButton.addEventListener('click', () => {
