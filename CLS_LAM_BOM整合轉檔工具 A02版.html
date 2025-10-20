@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLS_LAM_BOM整合轉檔工具 A02版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', '微軟正黑體', sans-serif;
+        }
+        .tab-button.active {
+            border-color: #4f46e5;
+            color: #4f46e5;
+            background-color: #eef2ff;
+        }
+        /* Webkit-specific pseudo-element for directory picker button */
+        input[type="file"]::-webkit-file-upload-button {
+            visibility: hidden;
+            display: none;
+        }
+        /* Loading Spinner */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border-left-color: #4f46e5;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+        table {
+            white-space: nowrap;
+        }
+        .conflict-row {
+            background-color: #fee2e2; /* Light red for conflicts */
+        }
+        #content-manual h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        #content-manual h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        #content-manual p, #content-manual li {
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+        #content-manual ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+        }
+        #content-manual code {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">CLS_LAM_BOM整合轉檔工具 A02版</h1>
+            <p class="mt-2 text-md text-gray-600">製作者：Gary Lan (Gemini) 2025/10/17</p>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+            <!-- Folder Selection and Processing Controls -->
+            <div class="flex flex-col md:flex-row items-center justify-between border-b border-gray-200 pb-6 mb-6 gap-4">
+                <div class="relative w-full md:w-auto">
+                    <label for="file-input" class="w-full text-center cursor-pointer inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        選擇資料夾
+                    </label>
+                    <input type="file" id="file-input" class="hidden" webkitdirectory multiple>
+                </div>
+                <button id="process-button" disabled class="w-full md:w-auto px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition">
+                    處理檔案並建立BOM
+                </button>
+            </div>
+            
+             <!-- Status Message -->
+            <div id="status-container" class="text-center text-gray-600 my-4 flex flex-col items-center justify-center gap-4 min-h-[40px]">
+                <div id="spinner" class="spinner hidden"></div>
+                <div id="status-message">請先選擇一個包含BOM檔案的資料夾。</div>
+            </div>
+
+
+            <!-- Tabs Navigation -->
+            <div class="mb-6">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                        <button id="tab-files" class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            檔案分析與選擇
+                        </button>
+                        <button id="tab-bom" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            BOM 結構
+                        </button>
+                        <button id="tab-manual" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            使用說明
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Tabs Content -->
+            <div>
+                <!-- File Analysis Tab -->
+                <div id="content-files">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">設為頂層</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">選用版本</th>
+                                    <th scope="col" class="w-12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">已使用</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">檔案名稱 (Rev)</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">子項目數量</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">內容狀態</th>
+                                </tr>
+                            </thead>
+                            <tbody id="file-list" class="bg-white divide-y divide-gray-200">
+                                <!-- File list will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- BOM Structure Tab -->
+                <div id="content-bom" class="hidden">
+                     <div class="flex justify-end mb-4">
+                        <button id="copy-bom-button" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm">複製BOM表格</button>
+                    </div>
+                    <div class="table-container border rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                             <thead class="bg-gray-100">
+                                <tr id="bom-header-row">
+                                    <!-- Header will be populated by JS -->
+                                </tr>
+                            </thead>
+                            <tbody id="bom-output" class="bg-white divide-y divide-gray-200 text-sm">
+                                <!-- BOM structure will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- User Manual Tab -->
+                <div id="content-manual" class="hidden">
+                    <article class="prose max-w-none">
+                        <h3>1. 工具簡介</h3>
+                        <p>本工具旨在解決BOM (Bill of Materials, 物料清單) 管理中的一個常見痛點：將分散在多個獨立檔案中的單階BOM，自動化地整合成一份完整、多階層的BOM結構。</p>
+                        <p>使用者僅需提供包含各階組件BOM的資料夾，本工具即可智慧地分析父子關係、處理版本衝突，並最終輸出一份符合特定格式（37個欄位）的完整BOM表。</p>
+                        <h4>主要功能：</h4>
+                        <ul>
+                            <li><strong>自動化展階</strong>：從指定的最高階母階開始，遞迴地尋找並串聯所有子階BOM。</li>
+                            <li><strong>智慧分析</strong>：自動解析來源檔案的標頭資訊，抓取料號、版本(Rev)、描述與子項目數量。</li>
+                            <li><strong>衝突管理</strong>：當偵測到同一料號存在多個不同版本時，會主動提示並讓使用者手動選擇要採用的版本。</li>
+                            <li><strong>格式化輸出</strong>：生成符合標準格式的37欄位BOM表，並可一鍵複製以便貼入Excel。</li>
+                            <li><strong>本機端運作</strong>：所有操作均在您的瀏覽器中完成，確保資料安全，無需上傳任何檔案。</li>
+                        </ul>
+
+                        <h3>2. 操作流程</h3>
+                        <h4>步驟一：準備來源檔案</h4>
+                        <ol class="list-decimal pl-5">
+                            <li>將所有BOM來源檔案（支援 <code>.xlsx</code> 和 <code>.csv</code> 格式）全部放置在電腦的<strong>同一個資料夾</strong>內。</li>
+                            <li>請確保您的來源檔案符合以下格式規範，以便程式能正確解析：
+                                <ul class="list-disc pl-5 mt-2">
+                                    <li><strong>檔案第一行</strong>：必須包含母階料號資訊，格式為：<br><code>Parent Part: {母階料號}{ Rev: 版本 }{ 描述 }{ No. of Comps: 子項目數量}</code><br><em>範例：</em> <code>Parent Part: 573-B17358-001{ Rev: A } { ASSY,HRD STRCTRD,TREOS } { No. of Comps: 43}</code></li>
+                                    <li><strong>檔案內容</strong>：必須包含定義子階關係的表格，且表格的欄位標頭需符合程式的對應規則（例如 <code>Component Part</code>, <code>Supplier</code>, <code>Current Rev</code> 等）。</li>
+                                </ul>
+                            </li>
+                        </ol>
+
+                        <h4>步驟二：啟動工具並選擇資料夾</h4>
+                        <ol class="list-decimal pl-5">
+                            <li>使用<strong>Google Chrome</strong>瀏覽器，打開<strong>CLS_LAM_BOM整合轉檔工具</strong>檔案。</li>
+                            <li>點擊頁面上方的 <strong>[選擇資料夾]</strong> 按鈕。</li>
+                            <li>在跳出的對話框中，選取您在步驟一所準備的那個資料夾。</li>
+                        </ol>
+                        
+                        <h4>步驟三：檔案分析與使用者決策 (第一頁籤)</h4>
+                        <p>選擇資料夾後，程式會自動讀取並分析所有檔案，結果會顯示在「<strong>檔案分析與選擇</strong>」頁籤的表格中。<strong>這是整個流程中最關鍵的一步。</strong></p>
+                        <p>請依序檢視以下欄位並進行操作：</p>
+                        <!-- ... Table for explanation ... -->
+                        
+                        <h4>步驟四：生成BOM</h4>
+                        <ol class="list-decimal pl-5">
+                           <li>確認您已經指定了「設為頂層」的母階。</li>
+                           <li>如果您看到了「版本衝突」的提示，請務必在「選用版本」欄位中做出選擇。</li>
+                           <li>點擊 <strong>[處理檔案並建立BOM]</strong> 按鈕。</li>
+                           <li>程式會開始運算，此時會出現載入動畫。處理完成後，介面會自動跳轉至「BOM 結構」頁籤。</li>
+                        </ol>
+                        
+                        <h4>步驟五：檢視與匯出結果 (第二頁籤)</h4>
+                         <ol class="list-decimal pl-5">
+                           <li>在「<strong>BOM 結構</strong>」頁籤中，您可以看到程式根據您的選擇所生成的多階層BOM表。</li>
+                           <li>此表格包含完整的37個欄位，所有資料均已根據對應規則填入。</li>
+                           <li>點擊右上角的 <strong>[複製BOM表格]</strong> 按鈕。</li>
+                           <li>開啟您的Excel或其他試算表軟體，直接貼上即可得到格式正確的BOM資料。</li>
+                        </ol>
+
+                        <h3>3. 重要提醒</h3>
+                        <div class="p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                           <p class="font-bold">當CLS_LAM_BOM轉完後，記得將母階料號加上CLS的識別碼。</p>
+                           <p class="font-bold mt-2">轉BOM完成記得確認第一頁是否每個文件都有使用到，若有無使用到的請記得確認。</p>
+                        </div>
+                        
+                        <h3>4. 常見問題 (FAQ)</h3>
+                        <ul>
+                            <li><strong>問：為什麼[處理檔案並建立BOM]按鈕是灰色的，無法點擊？</strong>
+                                <p>答：因為您尚未在「設為頂層」欄位中，指定一個BOM展階的起點。請點選一個母階後再試。</p>
+                            </li>
+                            <li><strong>問：我看到了紅色的「版本衝突」提示，該怎麼辦？</strong>
+                                <p>答：這是正常的提醒。請在衝突的檔案群組中，利用「選用版本」的選項，點選您確定要使用的那個版本即可。</p>
+                            </li>
+                        </ul>
+                    </article>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const processButton = document.getElementById('process-button');
+        const fileListBody = document.getElementById('file-list');
+        const bomHeaderRow = document.getElementById('bom-header-row');
+        const bomOutputBody = document.getElementById('bom-output');
+        const statusMessage = document.getElementById('status-message');
+        const spinner = document.getElementById('spinner');
+        
+        const tabFiles = document.getElementById('tab-files');
+        const tabBom = document.getElementById('tab-bom');
+        const tabManual = document.getElementById('tab-manual');
+
+        const contentFiles = document.getElementById('content-files');
+        const contentBom = document.getElementById('content-bom');
+        const contentManual = document.getElementById('content-manual');
+        const copyBomButton = document.getElementById('copy-bom-button');
+
+        let fileCache = [];
+        
+        const BOM_COLUMNS = [
+            'Level', 'Info', 'Cost Flag', 'Rollup', 'Part', 'Item', 'Description', 'Qty', 'ExQty', 'UOM', 'Typ',
+            'CE', 'InstFrom', 'OB-DB', 'Config', 'Lifnr', 'SO', 'SO-Item', 'Stvkn', 'Parent', 'Child', 'ValidFrom',
+            'ValidTo', 'Rev', 'SC', 'Nbr', 'Lvl', 'Status', 'Degrease', 'Critical', 'Safety Critical', 'Next bom id col',
+            'No of components', 'Mfr Part No', 'Mfr Name', 'Serl. Desc', 'Item Text'
+        ];
+        
+        function initialize() {
+            bomHeaderRow.innerHTML = BOM_COLUMNS.map(col => `<th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 tracking-wider">${col}</th>`).join('');
+        }
+        initialize();
+
+        function switchTab(tabName) {
+            tabFiles.classList.remove('active');
+            tabBom.classList.remove('active');
+            tabManual.classList.remove('active');
+            contentFiles.classList.add('hidden');
+            contentBom.classList.add('hidden');
+            contentManual.classList.add('hidden');
+            
+            if (tabName === 'files') {
+                tabFiles.classList.add('active');
+                contentFiles.classList.remove('hidden');
+            } else if (tabName === 'bom') {
+                tabBom.classList.add('active');
+                contentBom.classList.remove('hidden');
+            } else if (tabName === 'manual') {
+                tabManual.classList.add('active');
+                contentManual.classList.remove('hidden');
+            }
+        }
+        tabFiles.addEventListener('click', () => switchTab('files'));
+        tabBom.addEventListener('click', () => switchTab('bom'));
+        tabManual.addEventListener('click', () => switchTab('manual'));
+        
+        fileInput.addEventListener('change', async (event) => {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            statusMessage.textContent = `讀取中，共 ${files.length} 個檔案...`;
+            processButton.disabled = true;
+            fileCache = [];
+            fileListBody.innerHTML = '<tr><td colspan="6" class="text-center p-4">正在分析檔案...</td></tr>';
+            
+            const promises = Array.from(files)
+                .filter(file => file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.xlsx'))
+                .map(file => processFile(file));
+
+            await Promise.all(promises);
+            
+            await analyzeFiles();
+            renderFileList();
+
+            if (fileCache.length > 0) {
+                 statusMessage.textContent = `分析完成！請選擇一個檔案作為頂層母階。`;
+            } else {
+                statusMessage.textContent = `資料夾中未找到可用的BOM檔案。`;
+            }
+        });
+        
+        function parseFileData(textContent, fileName) {
+            const lines = textContent.split(/\r?\n/);
+            const firstLine = lines[0] || '';
+            const headerInfo = {
+                parent: null,
+                rev: '',
+                description: 'NO DESCRIPTION',
+                numComponents: 0,
+            };
+
+            const headerMatch = firstLine.match(/Parent Part:\s*([\w-]+)\s*\{\s*Rev:\s*(.*?)\s*\}\s*\{\s*(.*?)\s*\}\s*\{\s*No\. of Comps:\s*(\d+)\s*\}/);
+            if (headerMatch) {
+                headerInfo.parent = headerMatch[1].trim();
+                headerInfo.rev = headerMatch[2].trim();
+                headerInfo.description = headerMatch[3].trim();
+                headerInfo.numComponents = parseInt(headerMatch[4], 10) || 0;
+            } else {
+                const simplerHeaderMatch = firstLine.match(/Parent Part:\s*([\w-]+)\s*\{\s*Rev:\s*(.*?)\s*\}\s*\{\s*(.*?)\s*\}/);
+                if (simplerHeaderMatch) {
+                    headerInfo.parent = simplerHeaderMatch[1].trim();
+                    headerInfo.rev = simplerHeaderMatch[2].trim();
+                    headerInfo.description = simplerHeaderMatch[3].trim();
+                } else {
+                    const parentMatch = firstLine.match(/Parent Part:\s*([\w-]+)/);
+                    if (parentMatch) {
+                        headerInfo.parent = parentMatch[1].trim();
+                    }
+                }
+            }
+            
+            if (!headerInfo.rev) {
+                const fileRevMatch = fileName.match(/_([A-Z0-9]+)\.(xlsx|csv)/i);
+                if (fileRevMatch) {
+                    headerInfo.rev = fileRevMatch[1];
+                }
+            }
+
+            const relationships = parseRelationships(textContent);
+            if (headerInfo.numComponents === 0) {
+                headerInfo.numComponents = relationships.length;
+            }
+            return { ...headerInfo, relationships };
+        }
+
+        async function processFile(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    let textContent;
+                    if (file.name.toLowerCase().endsWith('.xlsx')) {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const sheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[sheetName];
+                        textContent = XLSX.utils.sheet_to_csv(worksheet);
+                    } else {
+                        textContent = e.target.result;
+                    }
+                    
+                    const hash = await generateHash(textContent);
+                    const parsedData = parseFileData(textContent, file.name);
+                    
+                    fileCache.push({
+                        id: self.crypto.randomUUID(), // Unique ID for each file
+                        file,
+                        textContent,
+                        hash,
+                        status: '',
+                        used: false,
+                        mainParent: parsedData.parent,
+                        relationships: parsedData.relationships,
+                        rev: parsedData.rev,
+                        description: parsedData.description,
+                        numComponents: parsedData.numComponents
+                    });
+                    resolve();
+                };
+                 if (file.name.toLowerCase().endsWith('.xlsx')) {
+                    reader.readAsArrayBuffer(file);
+                 } else {
+                    reader.readAsText(file, 'utf-8');
+                 }
+            });
+        }
+
+        async function generateHash(string) {
+            const utf8 = new TextEncoder().encode(string);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', utf8);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map((bytes) => bytes.toString(16).padStart(2, '0')).join('');
+        }
+
+        async function analyzeFiles() {
+            // 1. Analyze content duplicates
+            const contentHashes = {};
+            fileCache.forEach(item => {
+                if (!contentHashes[item.hash]) contentHashes[item.hash] = [];
+                contentHashes[item.hash].push(item.file.name);
+            });
+            fileCache.forEach(item => {
+                if (contentHashes[item.hash].length > 1) {
+                    const others = contentHashes[item.hash].filter(name => name !== item.file.name).join(', ');
+                    item.status = `<span class="text-yellow-600 font-medium">內容與 ${others} 相同</span>`;
+                } else {
+                    item.status = '<span class="text-green-600 font-medium">內容獨一</span>';
+                }
+            });
+
+            // 2. Analyze parent part conflicts
+            const parentGroups = {};
+            fileCache.forEach(item => {
+                 if (!item.mainParent) return;
+                 if (!parentGroups[item.mainParent]) parentGroups[item.mainParent] = [];
+                 // Only add unique content to the group
+                 if (!parentGroups[item.mainParent].some(existing => existing.hash === item.hash)) {
+                    parentGroups[item.mainParent].push(item);
+                 }
+            });
+            
+            for (const parent in parentGroups) {
+                if (parentGroups[parent].length > 1) {
+                    parentGroups[parent].forEach(item => {
+                        item.isConflict = true;
+                        item.status = `<span class="text-red-600 font-bold">版本衝突</span>`;
+                    });
+                }
+            }
+        }
+        
+        function renderFileList() {
+            fileListBody.innerHTML = '';
+            const parentGroups = {};
+            fileCache.forEach(item => {
+                const key = item.mainParent || item.id;
+                if (!parentGroups[key]) parentGroups[key] = [];
+                parentGroups[key].push(item);
+            });
+
+            for (const key in parentGroups) {
+                const items = parentGroups[key];
+                const isConflict = items.length > 1 && items.some(i => i.isConflict);
+
+                items.forEach((item, index) => {
+                    let topLevelCellHTML = '';
+                    let versionCellHTML = '';
+
+                    if (item.mainParent) {
+                        topLevelCellHTML = `<input type="radio" name="top-level-selector" value="${item.mainParent}" class="h-5 w-5 text-indigo-600 border-gray-300 focus:ring-indigo-500">`;
+                    }
+
+                    if (isConflict) {
+                        const isChecked = index === 0 ? 'checked' : '';
+                        versionCellHTML = `
+                            <div class="flex items-center space-x-2">
+                                <input type="radio" name="version-selector-${item.mainParent}" value="${item.id}" class="h-5 w-5 text-indigo-600 border-gray-300 focus:ring-indigo-500" ${isChecked}>
+                                <label class="text-sm">使用此版</label>
+                            </div>`;
+                    }
+
+                    const rowClass = isConflict ? 'conflict-row' : '';
+                    const row = `
+                        <tr class="${rowClass}">
+                            <td class="px-6 py-4 whitespace-nowrap text-center">${topLevelCellHTML}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">${versionCellHTML}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <input type="checkbox" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" ${item.used ? 'checked' : ''} disabled>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap font-mono text-sm">${item.file.name} <strong>(Rev: ${item.rev || 'N/A'})</strong></td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center font-medium">${item.numComponents || 0}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">${item.status}</td>
+                        </tr>
+                    `;
+                    fileListBody.innerHTML += row;
+                });
+            }
+
+            if(fileCache.length === 0){
+                fileListBody.innerHTML = '<tr><td colspan="6" class="text-center p-4 text-gray-500">未找到任何 .csv 或 .xlsx 檔案。</td></tr>';
+            }
+            document.querySelectorAll('input[name="top-level-selector"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    processButton.disabled = false;
+                    statusMessage.textContent = `已選擇 ${radio.value} 作為頂層母階，可以開始處理。`;
+                });
+            });
+        }
+
+
+        // --- BOM Processing Logic ---
+        processButton.addEventListener('click', () => {
+            const selectedRadio = document.querySelector('input[name="top-level-selector"]:checked');
+            if (!selectedRadio) {
+                statusMessage.textContent = '錯誤：請先選擇一個頂層母階！';
+                return;
+            }
+            const selectedTopPart = selectedRadio.value;
+
+            spinner.classList.remove('hidden');
+            processButton.disabled = true;
+            statusMessage.textContent = `正在以 ${selectedTopPart} 為起點處理BOM結構，請稍候...`;
+            bomOutputBody.innerHTML = `<tr><td colspan="${BOM_COLUMNS.length}" class="text-center p-8">正在建立BOM...</td></tr>`;
+
+            setTimeout(() => {
+                try {
+                    const bomData = buildBom(selectedTopPart);
+                    renderBom(bomData);
+                    renderFileList();
+                    statusMessage.textContent = 'BOM 結構已成功建立！';
+                    switchTab('bom');
+                } catch(e) {
+                    console.error("BOM 建立失敗:", e);
+                    statusMessage.textContent = `處理失敗: ${e.message}`;
+                    bomOutputBody.innerHTML = `<tr><td colspan="${BOM_COLUMNS.length}" class="text-center p-8 text-red-600">BOM建立失敗: ${e.message}</td></tr>`;
+                } finally {
+                    spinner.classList.add('hidden');
+                    processButton.disabled = false;
+                }
+            }, 50);
+        });
+        
+        const COLUMN_MAPPING = {
+            'Supplier': 'Lifnr', 'Item': 'Item', 'ID': 'Nbr', 'Component Part': 'Part',
+            'Description': 'Description', 'Src. Code': 'SC', 'Status': 'Status', 'Clean Req': 'Degrease',
+            'Critical': 'Critical', 'Safety Critical': 'Safety Critical', 'CE': 'CE', 'Current Rev': 'Rev',
+            'Qty': 'Qty', 'UOM': 'UOM', 'Item Cat': 'Typ', 'Valid from': 'ValidFrom', 'Valid To': 'ValidTo',
+            'Mfr Part': 'Mfr Part No', 'Mfr Name': 'Mfr Name', 'Serl. Desc': 'Serl. Desc'
+        };
+
+        function parseRelationships(textContent) {
+            const lines = textContent.split(/\r?\n/);
+            let relationships = [];
+            const parentMatch = lines[0] ? lines[0].match(/Parent Part:\s*([\w-]+)/) : null;
+
+            if (parentMatch) {
+                const parent = parentMatch[1].trim();
+                let headerIndex = lines.findIndex(line => line.includes('Component Part') && line.includes('Supplier'));
+                if (headerIndex === -1) return [];
+
+                const headers = lines[headerIndex].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(h => h.replace(/"/g, '').trim());
+
+                const indexMap = {};
+                for (const sourceHeader in COLUMN_MAPPING) {
+                    const targetKey = COLUMN_MAPPING[sourceHeader];
+                    const index = headers.indexOf(sourceHeader);
+                    if (index !== -1) {
+                        indexMap[targetKey] = index;
+                    }
+                }
+                indexMap['Child'] = headers.indexOf('Component Part'); // Crucial for recursion
+
+                if (indexMap['Part'] === undefined) return [];
+
+                for (let i = headerIndex + 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    const cols = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    
+                    const childPart = cols[indexMap['Part']]?.replace(/"/g, '').trim();
+                    if (childPart) {
+                        const relData = { parent: parent };
+                        for (const targetKey in indexMap) {
+                            const colIndex = indexMap[targetKey];
+                            if (colIndex !== undefined && cols[colIndex] !== undefined) {
+                                let value = cols[colIndex].replace(/"/g, '').trim();
+                                if (targetKey === 'Qty') {
+                                    value = parseFloat(value) || 0;
+                                }
+                                relData[targetKey] = value;
+                            }
+                        }
+                        relationships.push(relData);
+                    }
+                }
+                return relationships;
+            }
+            return [];
+        }
+
+
+        function createBomRow(data) {
+            const row = {};
+            BOM_COLUMNS.forEach(col => row[col] = ''); 
+            
+            row['Info'] = '0';
+            row['Cost Flag'] = 'N';
+            row['Rollup'] = '0';
+            row['ExQty'] = data.Qty || 0;
+            row['CE'] = data.CE || 'Y';
+            row['ValidTo'] = data.ValidTo || '99991231';
+            row['Status'] = data.Status || 'P';
+            row['Degrease'] = data.Degrease || 'No Cln';
+            row['Serl. Desc'] = data['Serl. Desc'] || 'Not Serialized';
+            
+            for (const key in data) {
+                if (row.hasOwnProperty(key)) {
+                    row[key] = data[key];
+                }
+            }
+            row['Typ'] = data.Typ || 'Y';
+
+            return row;
+        }
+
+        function buildBom(selectedTopPart) {
+            fileCache.forEach(f => f.used = false);
+            
+            // Build the map of parts to file data, respecting user's choices for conflicts.
+            const partToFileDataMap = new Map();
+            const parentGroups = {};
+            fileCache.forEach(item => {
+                if (!item.mainParent) return;
+                if (!parentGroups[item.mainParent]) parentGroups[item.mainParent] = [];
+                parentGroups[item.mainParent].push(item);
+            });
+
+            for (const parent in parentGroups) {
+                const items = parentGroups[parent];
+                if (items.length > 1 && items[0].isConflict) {
+                    const selectedVersionRadio = document.querySelector(`input[name="version-selector-${parent}"]:checked`);
+                    const selectedFileId = selectedVersionRadio ? selectedVersionRadio.value : items[0].id; // Default to first if somehow none selected
+                    const selectedFile = fileCache.find(f => f.id === selectedFileId);
+                    if(selectedFile) partToFileDataMap.set(parent, selectedFile);
+                } else {
+                    partToFileDataMap.set(parent, items[0]);
+                }
+            }
+
+
+            const finalBomList = [];
+            const processedAssemblies = new Set();
+            const usedFileHashes = new Set();
+
+            const recursiveExplosion = (parentPart, level) => {
+                if (processedAssemblies.has(parentPart)) return;
+                processedAssemblies.add(parentPart);
+
+                const fileData = partToFileDataMap.get(parentPart);
+                if (!fileData) return;
+
+                usedFileHashes.add(fileData.hash);
+                const children = fileData.relationships.sort((a,b) => (a.Part || "").localeCompare(b.Part || ""));
+                
+                children.forEach((rel, index) => {
+                    const childFileData = partToFileDataMap.get(rel.Part);
+                    
+                    const rowData = { ...rel };
+                    rowData['Level'] = ". . ".repeat(level) + level;
+                    rowData['Parent'] = parentPart;
+                    rowData['Lvl'] = level;
+                    
+                    if (childFileData && childFileData.rev) {
+                        rowData['Rev'] = childFileData.rev;
+                    }
+                    
+                    rowData['No of components'] = childFileData ? childFileData.numComponents : 0;
+                    
+                    finalBomList.push(createBomRow(rowData));
+                    recursiveExplosion(rel.Part, level + 1);
+                });
+            };
+
+            const topFile = partToFileDataMap.get(selectedTopPart);
+            let topPartDesc = "TOP LEVEL ASSEMBLY";
+            let topRev = '';
+            let topNoOfComp = 0;
+            if (topFile) {
+                 topPartDesc = topFile.description;
+                 topRev = topFile.rev;
+                 topNoOfComp = topFile.numComponents;
+            }
+            
+            finalBomList.push(createBomRow({
+                'Level': '0', 'Parent': selectedTopPart, 'Part': selectedTopPart, 'Child': selectedTopPart,
+                'Description': topPartDesc, 'Qty': 1, 'UOM': 'EA', 'Typ': 'Z', 'Lvl': 0, 'Rev': topRev,
+                'Item': '', 'No of components': topNoOfComp
+            }));
+
+            recursiveExplosion(selectedTopPart, 1);
+
+            fileCache.forEach(item => {
+                if (usedFileHashes.has(item.hash)) item.used = true;
+            });
+
+            return finalBomList;
+        }
+
+        function renderBom(bomData) {
+            bomOutputBody.innerHTML = '';
+            if (bomData.length === 0) {
+                 bomOutputBody.innerHTML = `<tr><td colspan="${BOM_COLUMNS.length}" class="text-center p-8 text-gray-500">沒有生成BOM資料。</td></tr>`;
+                 return;
+            }
+            bomData.forEach(row => {
+                const cells = BOM_COLUMNS.map(col => `<td class="px-4 py-2">${row[col] === undefined ? '' : row[col]}</td>`).join('');
+                bomOutputBody.innerHTML += `<tr class="hover:bg-gray-50">${cells}</tr>`;
+            });
+        }
+        
+        copyBomButton.addEventListener('click', () => {
+            const table = document.querySelector("#content-bom table");
+            let text = "";
+            const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.innerText);
+            text += headers.join("\t") + "\n";
+            const rows = table.querySelectorAll("tbody tr");
+            rows.forEach(row => {
+                const rowData = Array.from(row.querySelectorAll("td")).map(td => td.innerText);
+                text += rowData.join("\t") + "\n";
+            });
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed"; 
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalText = copyBomButton.innerText;
+                    copyBomButton.innerText = "已複製！";
+                    setTimeout(() => { copyBomButton.innerText = originalText; }, 2000);
+                } else { alert("複製失敗！"); }
+            } catch (err) {
+                console.error('無法複製文字: ', err);
+                alert("複製失敗！");
+            }
+            document.body.removeChild(textArea);
+        });
+
+    </script>
+</body>
+</html>
+
