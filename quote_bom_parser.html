@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPABOM對規格書比對工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', '微軟正黑體', sans-serif;
+        }
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+        table {
+            white-space: nowrap;
+        }
+        .missing-leaf {
+            background-color: #fef9c3; /* yellow-100 */
+        }
+        .missing-assembly {
+            background-color: #fee2e2; /* red-100 */
+        }
+        .version-mismatch {
+            background-color: #fef3c7; /* yellow-200 */
+        }
+        .version-unconfirmed {
+            background-color: #eef2ff; /* indigo-50 */
+        }
+        /* Styling for the manual content */
+        #content-manual h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        #content-manual h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        #content-manual p, #content-manual li {
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+        #content-manual ol {
+            list-style-type: decimal;
+            padding-left: 1.5rem;
+        }
+        #content-manual code {
+            background-color: #f3f4f6;
+            color: #4b5563;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+        .file-input-label {
+            display: block;
+            text-align: center;
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #f9fafb;
+            font-weight: 500;
+            color: #374151;
+            transition: background-color 0.2s;
+        }
+        .file-input-label:hover {
+            background-color: #f3f4f6;
+        }
+        .file-input-label.disabled {
+            background-color: #e5e7eb;
+            cursor: not-allowed;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">RPABOM對規格書比對工具 A08版</h1>
+            <p class="mt-2 text-md text-gray-600">解析BOM、交叉比對規格書是否存在並驗證版本。</p>
+        </header>
+
+        <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 max-w-7xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 items-center justify-between border-b border-gray-200 pb-6 mb-6 gap-4">
+                 <div>
+                    <label for="bom-file-input" id="bom-label" class="file-input-label bg-purple-50 text-purple-700 hover:bg-purple-100">選取RPABOM</label>
+                    <input type="file" id="bom-file-input" class="hidden" accept=".csv, .xlsx">
+                 </div>
+                 <div>
+                     <label for="spec-folder-input" id="spec-label" class="file-input-label disabled">選取規格書所在資料夾</label>
+                    <input type="file" id="spec-folder-input" webkitdirectory disabled class="hidden">
+                 </div>
+                <button id="process-button" disabled class="w-full md:w-auto px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition">
+                    分析BOM與規格書
+                </button>
+            </div>
+            
+            <div id="status-message" class="text-center text-gray-600 my-4">1. 請先上傳BOM檔案。</div>
+            
+            <!-- Tabs Navigation -->
+            <div class="mb-6">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                        <button id="tab-results" class="tab-button active whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            分析結果
+                        </button>
+                        <button id="tab-manual" class="tab-button whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                            使用說明
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Tabs Content -->
+            <div id="results-container" class="">
+                 <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">分析結果</h2>
+                    <button id="copy-results-button" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm hidden">複製結果</button>
+                </div>
+                <div class="table-container border rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr id="results-header">
+                                <!-- Headers will be dynamically generated -->
+                            </tr>
+                        </thead>
+                        <tbody id="results-body" class="bg-white divide-y divide-gray-200">
+                             <tr><td colspan="${OUTPUT_COLUMNS.length}" class="text-center p-8 text-gray-500">尚無分析結果。</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="content-manual" class="hidden prose max-w-none">
+                <h3>1. 工具簡介</h3>
+                <p>本工具旨在自動化BOM (物料清單) 與規格書的交叉比對流程。它可以讀取特定格式的BOM檔案，並與您指定的規格書資料夾進行比對，快速找出缺少的規格書，並驗證既有規格書的版本是否正確。</p>
+                
+                <h3>2. 操作流程</h3>
+                <ol>
+                    <li><strong>選取RPABOM</strong>：點擊 <strong>[選取RPABOM]</strong> 按鈕，選擇您的 <code>.xlsx</code> 或 <code>.csv</code> 格式的BOM檔案。</li>
+                    <li><strong>選取規格書所在資料夾</strong>：成功上傳BOM後， <strong>[選取規格書所在資料夾]</strong> 按鈕會變為可用。點擊它並選擇包含所有規格書 (PDF, Word, PPT等) 的資料夾。</li>
+                    <li><strong>開始分析</strong>：當兩個檔案來源都選擇完畢後，點擊 <strong>[分析BOM與規格書]</strong> 按鈕開始處理。</li>
+                    <li><strong>檢視與複製結果</strong>：分析完成後，結果會顯示在下方的表格中。您可以點擊右上角的 <strong>[複製結果]</strong> 按鈕，將表格完整複製到Excel中。</li>
+                </ol>
+
+                <h3>3. 如何解讀分析結果</h3>
+                <p>結果表格的核心是前兩欄的「狀態」以及對應的「背景顏色標記」，它們的意義如下：</p>
+                <h4>尋獲狀態</h4>
+                <ul>
+                    <li><strong class="text-green-700">已找到</strong>：在資料夾中找到了對應的規格書。</li>
+                    <li><strong class="text-red-700">缺少</strong>：在資料夾中找不到對應的規格書。</li>
+                </ul>
+
+                <h4>版本狀態 & 顏色標記</h4>
+                <ul>
+                    <li><strong><span class="text-green-700">版本一致</span></strong> (無底色): 找到了規格書，且其版本號與BOM中的「客戶版本」一致 (例如 `01` 對 `1`)。</li>
+                    <li><strong><span class="text-blue-700">版本未確認</span></strong> (<span class="version-unconfirmed px-1 rounded">淺藍色背景</span>): 找到了規格書，但因檔名或BOM欄位缺少版本資訊，故無法比對。</li>
+                    <li><strong><span class="text-orange-700">不一致</span></strong> (<span class="version-mismatch px-1 rounded">淺黃色背景</span>): 找到了規格書，但其版本與BOM中的「客戶版本」**不一致**。</li>
+                    <li><strong><span class="text-yellow-800">N/A (底層零件)</span></strong> (<span class="missing-leaf px-1 rounded">黃色背景</span>): 這是一個**底層零件**且找不到規格書。</li>
+                    <li><strong><span class="text-red-800">N/A (組件)</span></strong> (<span class="missing-assembly px-1 rounded">紅色背景</span>): 這是一個**組件** (底下還有子階) 且找不到它自身的規格書，這是最需要注意的狀況。</li>
+                </ul>
+                 <h4>階層分隔行</h4>
+                <ul>
+                    <li>表格中灰色的 <code>level.x</code> 行是為了方便您在視覺上區分不同階層而保留的分隔符，它們不參與任何比對。</li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const bomFileInput = document.getElementById('bom-file-input');
+        const specFolderInput = document.getElementById('spec-folder-input');
+        const bomLabel = document.getElementById('bom-label');
+        const specLabel = document.getElementById('spec-label');
+
+        const processButton = document.getElementById('process-button');
+        const statusMessage = document.getElementById('status-message');
+        
+        const resultsContainer = document.getElementById('results-container');
+        const resultsHeader = document.getElementById('results-header');
+        const resultsBody = document.getElementById('results-body');
+        const copyResultsButton = document.getElementById('copy-results-button');
+        
+        const tabResults = document.getElementById('tab-results');
+        const tabManual = document.getElementById('tab-manual');
+        const contentManual = document.getElementById('content-manual');
+
+
+        let specFileNames = [];
+
+        const OUTPUT_COLUMNS = [
+            '尋獲狀態', '版本狀態', 'Level', 'SNP', 'MaterPN', 'POS', 'QTY', '組成用量', '主件底數', 'COMPONENT', 'DESCRIPTION', '原始UM', 'UM', 
+            'UM不一致', 'CE', 'TCS', '流水碼', '信邦料號', '客戶版本', '信邦版本', '品名', '規格', '原廠廠牌', 
+            '原廠廠牌料號', '搜尋規則', '代理商', '幣別', '單價', 'MOQ', 'LT', '單位', '過去時間', '運費率(%)', 
+            '關稅率(%)', 'Phase Out', '有效否', '作廢否', '預計可用量', '庫存可用量', 'Memo'
+        ];
+
+        resultsHeader.innerHTML = OUTPUT_COLUMNS.map(col => `<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">${col}</th>`).join('');
+
+        function switchTab(tabName) {
+            if (tabName === 'results') {
+                tabResults.classList.add('active');
+                tabManual.classList.remove('active');
+                resultsContainer.classList.remove('hidden');
+                contentManual.classList.add('hidden');
+            } else {
+                tabManual.classList.add('active');
+                tabResults.classList.remove('active');
+                contentManual.classList.remove('hidden');
+                resultsContainer.classList.add('hidden');
+            }
+        }
+        tabResults.addEventListener('click', () => switchTab('results'));
+        tabManual.addEventListener('click', () => switchTab('manual'));
+
+        bomFileInput.addEventListener('change', () => {
+            if (bomFileInput.files.length > 0) {
+                specFolderInput.disabled = false;
+                specLabel.classList.remove('disabled');
+                statusMessage.textContent = `2. 請選擇包含規格書的資料夾。`;
+                bomLabel.textContent = `已選取: ${bomFileInput.files[0].name}`;
+            }
+        });
+        
+        specFolderInput.addEventListener('change', () => {
+            if (specFolderInput.files.length > 0) {
+                 processButton.disabled = false;
+                 statusMessage.textContent = `BOM與規格書資料夾均已選擇，可以開始分析。`;
+                 specFileNames = Array.from(specFolderInput.files).map(f => f.name);
+                 specLabel.textContent = `已選取資料夾 (${specFolderInput.files.length}個檔案)`;
+            }
+        });
+
+        processButton.addEventListener('click', async () => {
+            if (bomFileInput.files.length === 0 || specFileNames.length === 0) return;
+            
+            statusMessage.textContent = '正在讀取BOM並進行交叉比對...';
+            processButton.disabled = true;
+
+            try {
+                const file = bomFileInput.files[0];
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data);
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                
+                let parsedBom = parseAndMapBom(rawData);
+                parsedBom = checkSpecFiles(parsedBom, specFileNames);
+
+                renderResults(parsedBom);
+                
+                switchTab('results');
+                copyResultsButton.classList.remove('hidden');
+                statusMessage.textContent = '分析比對完成！';
+
+            } catch (error) {
+                console.error("處理檔案時發生錯誤:", error);
+                statusMessage.textContent = `錯誤: ${error.message}`;
+            } finally {
+                processButton.disabled = false;
+            }
+        });
+        
+        function checkSpecFiles(parsedBom, specFiles) {
+             const subAssemblyParts = new Set(parsedBom.map(item => item.MaterPN));
+             const specFileNamesNoExt = specFiles.map(name => name.substring(0, name.lastIndexOf('.')) || name);
+
+             return parsedBom.map(item => {
+                 if (item.isSeparator) return item;
+
+                 const component = (item.COMPONENT || '').trim();
+                 const bomCustomerVersion = (item['客戶版本'] || '').trim();
+
+                 if (!component) {
+                    item.specStatusType = 'na';
+                    item.foundStatusText = 'N/A';
+                    item.versionStatusText = 'N/A';
+                    return item;
+                 }
+
+                 let foundFile = null;
+
+                 const escapedComponent = component.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                 const versionRegex = new RegExp(`^${escapedComponent}(?:_?([A-Z0-9]+))?$`, 'i');
+                 
+                 for (const specName of specFileNamesNoExt) {
+                     const match = specName.match(versionRegex);
+                     if (match) {
+                         foundFile = { name: specName, version: (match[1] || '') };
+                         break;
+                     }
+                 }
+
+                 if (!foundFile) {
+                     const lastHyphenIndex = component.lastIndexOf('-');
+                     if (lastHyphenIndex > -1) {
+                         const basePart = component.substring(0, lastHyphenIndex);
+                         const escapedBasePart = basePart.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+                         const universalRegex = new RegExp(`^${escapedBasePart}-(XX|XXX)$`, 'i');
+                         for (const specName of specFileNamesNoExt) {
+                              if (universalRegex.test(specName)) {
+                                  foundFile = { name: specName, version: '' };
+                                  break;
+                              }
+                         }
+                     }
+                 }
+                 
+                 if (foundFile) {
+                     const specVersion = foundFile.version;
+                     item.foundStatusText = '已找到';
+
+                     if (specVersion && bomCustomerVersion) {
+                        const normalize = (v) => {
+                            const num = parseInt(v, 10);
+                            return isNaN(num) ? v.toUpperCase() : num;
+                        };
+                        const normalizedSpecVersion = normalize(specVersion);
+                        const normalizedBomVersion = normalize(bomCustomerVersion);
+
+                         if (normalizedSpecVersion === normalizedBomVersion) {
+                             item.specStatusType = 'found_match';
+                             item.versionStatusText = `版本一致: ${specVersion}`;
+                         } else {
+                             item.specStatusType = 'found_mismatch';
+                             item.versionStatusText = `不一致 (規格書:${specVersion} / BOM:${bomCustomerVersion})`;
+                         }
+                     } else {
+                         item.specStatusType = 'found_unconfirmed';
+                         item.versionStatusText = '版本未確認';
+                     }
+                 } else {
+                     const isSubAssembly = subAssemblyParts.has(component);
+                     item.specStatusType = isSubAssembly ? 'missing_assembly' : 'missing_leaf';
+                     item.foundStatusText = '缺少';
+                     item.versionStatusText = isSubAssembly ? 'N/A (組件)' : 'N/A (底層零件)';
+                 }
+                 return item;
+             });
+        }
+
+
+        function parseAndMapBom(rawData) {
+            const result = [];
+            const parentStack = []; 
+            let headers = [];
+            let headerFound = false;
+            let headerRowIndex = -1;
+
+            for(let i = 0; i < rawData.length; i++){
+                const row = rawData[i];
+                if (row.includes('COMPONENT') && row.includes('Level') && row.includes('信邦料號')) {
+                    headers = row.map(h => String(h).trim());
+                    headerRowIndex = i;
+                    headerFound = true;
+                    break;
+                }
+            }
+
+            if (!headerFound) throw new Error('找不到包含 "COMPONENT", "Level", "信邦料號" 的標頭行。');
+            
+            const colMap = {};
+            OUTPUT_COLUMNS.forEach(colName => {
+                const index = headers.indexOf(colName);
+                if (index !== -1) {
+                    colMap[colName] = index;
+                }
+            });
+            
+            for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+                const row = rawData[i];
+                const levelStr = String(row[colMap.Level] || '').trim();
+                
+                if (levelStr.toLowerCase().startsWith('level.')) {
+                    const separatorRow = { isSeparator: true };
+                    OUTPUT_COLUMNS.forEach(col => separatorRow[col] = '');
+                    separatorRow.Level = levelStr;
+                    result.push(separatorRow);
+                    continue;
+                }
+                
+                const component = String(row[colMap.COMPONENT] || '').trim();
+
+                if (!levelStr || !component) continue;
+                
+                const levelParts = levelStr.split('.');
+                const currentDepth = levelParts.length;
+
+                parentStack.length = currentDepth - 1;
+                const parentComponent = parentStack.length > 0 ? parentStack[parentStack.length - 1] : null;
+                parentStack.push(component);
+
+                const newRowData = {};
+                OUTPUT_COLUMNS.forEach(colName => {
+                     if (colMap[colName] !== undefined) {
+                        newRowData[colName] = row[colMap[colName]];
+                    } else {
+                        newRowData[colName] = '';
+                    }
+                });
+                
+                newRowData.MaterPN = parentComponent;
+                
+                result.push(newRowData);
+            }
+
+            return result;
+        }
+
+
+        function renderResults(parsedBom) {
+            resultsBody.innerHTML = '';
+            if (parsedBom.length === 0) {
+                resultsBody.innerHTML = `<tr><td colspan="${OUTPUT_COLUMNS.length}" class="text-center p-4">無法解析出任何BOM資料。</td></tr>`;
+                return;
+            }
+
+            for (const item of parsedBom) {
+                if (item.isSeparator) {
+                    resultsBody.innerHTML += `
+                        <tr class="bg-gray-100 font-semibold">
+                            <td colspan="${OUTPUT_COLUMNS.length}" class="px-4 py-2 text-gray-700">${item.Level}</td>
+                        </tr>`;
+                    continue;
+                }
+                
+                let rowHTML = '';
+                const statusType = item.specStatusType || 'na';
+                let rowClass = '';
+                switch(statusType) {
+                    case 'found_mismatch': rowClass = 'version-mismatch'; break;
+                    case 'found_unconfirmed': rowClass = 'version-unconfirmed'; break;
+                    case 'missing_leaf': rowClass = 'missing-leaf'; break;
+                    case 'missing_assembly': rowClass = 'missing-assembly'; break;
+                }
+                
+                const foundText = item.foundStatusText || 'N/A';
+                const versionText = item.versionStatusText || 'N/A';
+
+                let foundCellClass = 'text-gray-500';
+                if (foundText === '已找到') foundCellClass = 'text-green-700 font-medium';
+                if (foundText === '缺少') foundCellClass = 'text-red-700 font-bold';
+
+                OUTPUT_COLUMNS.forEach(colName => {
+                    let value = '';
+                    let className = 'px-4 py-2 whitespace-nowrap';
+
+                    switch(colName) {
+                        case '尋獲狀態':
+                            value = foundText;
+                            className += ` ${foundCellClass}`;
+                            break;
+                        case '版本狀態':
+                            value = versionText;
+                            break;
+                        default:
+                            value = item[colName] ?? '';
+                    }
+                    rowHTML += `<td class="${className}">${value}</td>`;
+                });
+
+                resultsBody.innerHTML += `<tr class="${rowClass}">${rowHTML}</tr>`;
+            }
+        }
+        
+        copyResultsButton.addEventListener('click', () => {
+             const table = document.querySelector("#results-container table");
+            let text = "";
+            const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.innerText);
+            text += headers.join("\t") + "\n";
+            const rows = table.querySelectorAll("tbody tr");
+            rows.forEach(row => {
+                const isSeparator = row.children.length === 1 && row.children[0].getAttribute('colspan');
+                if (isSeparator) {
+                    const separatorText = row.children[0].innerText;
+                    const separatorRowData = Array(headers.length).fill('');
+                    separatorRowData[OUTPUT_COLUMNS.indexOf('Level')] = separatorText;
+                    text += separatorRowData.join("\t") + "\n";
+                } else {
+                    const rowData = Array.from(row.querySelectorAll("td")).map(td => td.innerText);
+                    text += rowData.join("\t") + "\n";
+                }
+            });
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed"; 
+            textArea.style.top = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalText = copyResultsButton.innerText;
+                    copyResultsButton.innerText = "已複製！";
+                    setTimeout(() => { copyResultsButton.innerText = originalText; }, 2000);
+                } else { alert("複製失敗！"); }
+            } catch (err) {
+                console.error('無法複製文字: ', err);
+                alert("複製失敗！");
+            }
+            document.body.removeChild(textArea);
+        });
+    </script>
+</body>
+</html>
+
