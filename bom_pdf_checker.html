@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>產線掃描檔確認工具 A01版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 SheetJS library 用於讀取 Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        }
+        .file-input-label {
+            display: block;
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.5rem;
+            background-color: #f3f4f6;
+            color: #374151;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-align: center;
+            border: 2px dashed #d1d5db;
+        }
+        .file-input-label:hover {
+            background-color: #e5e7eb;
+            border-color: #9ca3af;
+        }
+        #fileName, #folderName {
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+            text-align: center;
+        }
+        #resultTable th, #resultTable td {
+            white-space: nowrap;
+        }
+        .prose h3 { margin-top: 1rem; margin-bottom: 0.5rem; font-size: 1.125rem; }
+        .prose p, .prose ol, .prose ul { margin-bottom: 0.75rem; }
+        .prose li { margin-left: 1.5rem; padding-left: 0.5rem; }
+        .prose ol { list-style-type: decimal; }
+        .prose ul { list-style-type: disc; }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen py-8">
+    <div class="w-full max-w-7xl mx-auto p-6 md:p-8">
+        <div class="bg-white rounded-2xl shadow-lg p-8">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-800">產線掃描檔確認工具 A01版</h1>
+                <p class="text-gray-500 mt-2">請上傳 BOM Excel 檔案並選擇 PDF 所在資料夾，即可自動比對。</p>
+                <p class="text-gray-400 text-sm mt-3">製作者：Gary Lan (Gemini) 2025/10/22</p>
+            </div>
+
+            <!-- 使用說明 -->
+            <details class="bg-gray-50 border rounded-lg p-4 mb-8 max-w-5xl mx-auto">
+                <summary class="font-semibold text-lg text-gray-700 cursor-pointer hover:text-indigo-600">點此展開 / 收合【使用說明】</summary>
+                <div class="mt-4 prose max-w-none text-gray-600">
+                    <h3 class="font-bold">目的</h3>
+                    <p>本工具旨在協助您快速比對 BOM (物料清單) Excel 檔案與資料夾中的 PDF 掃描檔，自動找出哪些料號缺少對應的檔案。</p>
+                    <h3 class="font-bold">操作步驟</h3>
+                    <ol>
+                        <li><strong>主母階名稱 (選填)：</strong> 在頁面上方的輸入框中，填寫您這次要查詢的產品主料號或名稱。這將用於自動產生的「缺少檔案通知訊息」中，讓訊息更清晰。如果留空，訊息中會顯示預設文字。</li>
+                        <li><strong>選擇 BOM Excel 檔：</strong> 點擊步驟一的按鈕，選擇包含料號清單的 <code>.xlsx</code> 或 <code>.xls</code> 格式檔案。</li>
+                        <li><strong>選擇 PDF 資料夾：</strong> 點擊步驟二的按鈕，選擇存放所有 PDF 掃描檔的資料夾。</li>
+                        <li><strong>選擇料號欄位：</strong> 當您上傳 Excel 檔案後，步驟三的下拉選單會自動載入檔案中的所有欄位標題。請從中選擇代表「料號/檔名」的欄位（程式會預選「子件」）。</li>
+                        <li><strong>開始比對：</strong> 點擊「開始比對」按鈕，程式將開始處理。</li>
+                    </ol>
+                    <h3 class="font-bold">結果說明</h3>
+                    <ul>
+                        <li><strong>結果表格：</strong> 處理完成後，下方會顯示完整的比對結果表格。表格的<strong>最後一欄</strong>會標示每個料號的 PDF 檔案是「存在」還是「缺少」。</li>
+                        <li><strong>複製表格：</strong> 您可以點擊「複製表格結果」按鈕，將整個表格複製起來，方便貼到 Excel 或其他文件中。</li>
+                        <li><strong>缺少檔案通知訊息：</strong> 如果有缺少的檔案，下方會自動產生一段通知文字，列出所有缺少的料號。您可以直接「複製通知訊息」並傳送給相關人員。</li>
+                    </ul>
+                </div>
+            </details>
+
+             <!-- 主母階名稱輸入 -->
+            <div class="mb-8 text-center">
+                <label for="mainAssemblyName" class="block text-lg font-medium text-gray-800 mb-2">主母階名稱 (選填)</label>
+                <input type="text" id="mainAssemblyName" placeholder="例如：A9865539" class="w-full max-w-md mx-auto px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+
+            <!-- 步驟設定 -->
+            <div class="grid md:grid-cols-3 gap-6 mb-8">
+                <!-- 步驟一：選擇 Excel -->
+                <div class="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
+                    <div class="bg-indigo-100 text-indigo-600 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl mb-3">1</div>
+                    <h3 class="font-semibold text-gray-700 mb-2">選擇 BOM Excel 檔</h3>
+                    <label for="excelFile" class="file-input-label w-full">點擊選擇檔案</label>
+                    <input type="file" id="excelFile" class="hidden" accept=".xlsx, .xls">
+                    <p id="fileName" class="truncate w-full px-2">尚未選擇檔案</p>
+                </div>
+                <!-- 步驟二：選擇資料夾 -->
+                <div class="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
+                    <div class="bg-indigo-100 text-indigo-600 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl mb-3">2</div>
+                    <h3 class="font-semibold text-gray-700 mb-2">選擇 PDF 資料夾</h3>
+                    <label for="pdfFolder" class="file-input-label w-full">點擊選擇資料夾</label>
+                    <input type="file" id="pdfFolder" class="hidden" webkitdirectory directory>
+                    <p id="folderName" class="truncate w-full px-2">尚未選擇資料夾</p>
+                    <div class="w-full mt-2 text-xs text-gray-500 text-center break-all px-2">
+                        <p class="font-medium">建議路徑：</p>
+                        <p>\\File\部門資料區\DB0000\Public-ML\LAM_首次生產後掃描圖BOM</p>
+                    </div>
+                </div>
+                <!-- 步驟三：設定欄位 -->
+                <div class="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
+                     <div class="bg-indigo-100 text-indigo-600 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl mb-3">3</div>
+                    <h3 class="font-semibold text-gray-700 mb-2">選擇料號欄位</h3>
+                    <select id="columnNameSelect" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                        <option value="" disabled selected>請先上傳 Excel 檔</option>
+                    </select>
+                     <p class="text-xs text-gray-500 mt-2">上傳後自動讀取欄位標題。</p>
+                </div>
+            </div>
+
+            <!-- 執行按鈕 -->
+            <div class="text-center mb-8">
+                <button id="processBtn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    開始比對
+                </button>
+            </div>
+
+            <!-- 結果顯示區域 -->
+            <div id="results" class="hidden">
+                 <div id="loading" class="text-center text-gray-600 hidden my-4">
+                    <svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    處理中，請稍候...
+                </div>
+                <div id="summary" class="text-center mb-4 font-medium text-lg"></div>
+                <div id="copy-container" class="text-center mb-4 hidden">
+                    <button id="copyBtn" class="bg-gray-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        複製表格結果
+                    </button>
+                </div>
+                <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table id="resultTable" class="min-w-full bg-white text-sm">
+                        <thead class="bg-gray-100"></thead>
+                        <tbody class="divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+                 <!-- 缺少檔案通知 -->
+                <div id="missing-summary-container" class="hidden mt-8">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-3 text-center">缺少檔案通知訊息</h3>
+                    <div class="bg-gray-50 p-4 rounded-lg border max-w-4xl mx-auto">
+                        <textarea id="missingSummaryText" class="w-full h-24 p-3 border rounded-md bg-white" readonly></textarea>
+                        <div class="text-center mt-3">
+                            <button id="copySummaryBtn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                複製通知訊息
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="error" class="hidden mt-4 text-center text-red-600 bg-red-100 p-3 rounded-md"></div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const excelFileInput = document.getElementById('excelFile');
+        const pdfFolderInput = document.getElementById('pdfFolder');
+        const mainAssemblyNameInput = document.getElementById('mainAssemblyName');
+        const columnNameSelect = document.getElementById('columnNameSelect');
+        const processBtn = document.getElementById('processBtn');
+        const resultsDiv = document.getElementById('results');
+        const loadingDiv = document.getElementById('loading');
+        const summaryDiv = document.getElementById('summary');
+        const errorDiv = document.getElementById('error');
+        const fileNameLabel = document.getElementById('fileName');
+        const folderNameLabel = document.getElementById('folderName');
+        const resultTable = document.getElementById('resultTable');
+        const copyContainer = document.getElementById('copy-container');
+        const copyBtn = document.getElementById('copyBtn');
+        const missingSummaryContainer = document.getElementById('missing-summary-container');
+        const missingSummaryText = document.getElementById('missingSummaryText');
+        const copySummaryBtn = document.getElementById('copySummaryBtn');
+
+        // Global state for PDF file names
+        let pdfFileNames = new Set();
+        
+        excelFileInput.addEventListener('change', async () => {
+            if (excelFileInput.files.length === 0) {
+                fileNameLabel.textContent = '尚未選擇檔案';
+                return;
+            }
+            fileNameLabel.textContent = excelFileInput.files[0].name;
+            columnNameSelect.innerHTML = '<option>讀取中...</option>';
+            try {
+                const file = excelFileInput.files[0];
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
+                columnNameSelect.innerHTML = '';
+                headers.forEach(header => {
+                    if (header) {
+                        const option = document.createElement('option');
+                        option.value = header;
+                        option.textContent = header;
+                        if (header === '子件') option.selected = true;
+                        columnNameSelect.appendChild(option);
+                    }
+                });
+            } catch (err) {
+                columnNameSelect.innerHTML = '<option value="" disabled selected>讀取失敗</option>';
+                showError('讀取 Excel 欄位失敗，請確認檔案格式是否正確。');
+            }
+        });
+
+        pdfFolderInput.addEventListener('change', () => {
+            if (pdfFolderInput.files.length > 0) {
+                folderNameLabel.textContent = `${pdfFolderInput.files.length} 個檔案`;
+                pdfFileNames.clear();
+                for (const file of pdfFolderInput.files) {
+                     if (file.name.toLowerCase().endsWith('.pdf')) {
+                        pdfFileNames.add(file.name.toLowerCase());
+                    }
+                }
+            } else {
+                folderNameLabel.textContent = '尚未選擇資料夾';
+            }
+        });
+        
+        processBtn.addEventListener('click', async () => {
+            summaryDiv.innerHTML = '';
+            resultTable.querySelector('thead').innerHTML = '';
+            resultTable.querySelector('tbody').innerHTML = '';
+            errorDiv.classList.add('hidden');
+            copyContainer.classList.add('hidden');
+            missingSummaryContainer.classList.add('hidden');
+            
+            if (!excelFileInput.files[0] || pdfFolderInput.files.length === 0 || !columnNameSelect.value) {
+                showError("請完成步驟 1, 2, 3 的所有選項。");
+                return;
+            }
+            const columnName = columnNameSelect.value;
+
+            resultsDiv.classList.remove('hidden');
+            loadingDiv.classList.remove('hidden');
+
+            try {
+                const data = await excelFileInput.files[0].arrayBuffer();
+                const workbook = XLSX.read(data);
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const bomDataArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+                if (bomDataArray.length < 2) {
+                     showError("Excel 工作表為空或格式錯誤。");
+                     loadingDiv.classList.add('hidden');
+                     return;
+                }
+                
+                const headers = bomDataArray[0].filter(h => h);
+                const bomData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                const thead = resultTable.querySelector('thead');
+                thead.innerHTML = `<tr>${headers.map(h => `<th class="px-4 py-3 border-b text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">${h}</th>`).join('')}<th class="px-4 py-3 border-b text-left text-xs font-semibold text-gray-600 uppercase tracking-wider bg-gray-100">PDF 狀態</th></tr>`;
+                
+                const tbody = resultTable.querySelector('tbody');
+                let tableContent = '';
+                let foundCount = 0;
+                let missingCount = 0;
+                const missingParts = [];
+
+                bomData.forEach(row => {
+                    const partNumber = row[columnName];
+                    let statusCell = '';
+                    let rowClass = 'bg-white hover:bg-gray-50';
+
+                    if (partNumber && String(partNumber).trim() !== '') {
+                        const pdfFileName = `${partNumber}`.toLowerCase().endsWith('.pdf') ? `${partNumber}`.toLowerCase() : `${partNumber}.pdf`.toLowerCase();
+                        if (pdfFileNames.has(pdfFileName)) {
+                            statusCell = '<td class="px-4 py-2 border-b text-green-600 font-medium bg-white">存在</td>';
+                            foundCount++;
+                        } else {
+                            statusCell = '<td class="px-4 py-2 border-b text-red-600 font-medium bg-red-50">缺少</td>';
+                            rowClass = 'bg-red-50 hover:bg-red-100';
+                            missingCount++;
+                            missingParts.push(partNumber);
+                        }
+                    } else {
+                        statusCell = '<td class="px-4 py-2 border-b text-gray-400 bg-gray-50">--</td>';
+                        rowClass = 'bg-gray-50';
+                    }
+
+                    let rowContent = `<tr class="${rowClass}">`;
+                    headers.forEach(header => {
+                        rowContent += `<td class="px-4 py-2 border-b text-gray-700">${row[header] || ''}</td>`;
+                    });
+                    rowContent += `${statusCell}</tr>`;
+                    tableContent += rowContent;
+                });
+
+                tbody.innerHTML = tableContent;
+                
+                const totalBomItems = bomData.filter(row => row[columnName] && String(row[columnName]).trim() !== '').length;
+                summaryDiv.innerHTML = `比對完成！總共 ${totalBomItems} 個料號。<span class="text-green-600">存在 ${foundCount} 個</span>，<span class="text-red-600">缺少 ${missingCount} 個</span>。`;
+                
+                copyContainer.classList.remove('hidden');
+
+                if (missingParts.length > 0) {
+                    const assemblyName = mainAssemblyNameInput.value.trim() || '[主母階名稱]';
+                    const summaryMessage = `目前 "${assemblyName}" 還缺少 "${missingParts.join('、')}" 的掃描檔案，再麻煩提供。`;
+                    missingSummaryText.value = summaryMessage;
+                    missingSummaryContainer.classList.remove('hidden');
+                }
+
+            } catch (err) {
+                console.error(err);
+                showError(`處理時發生錯誤：${err.message}`);
+            } finally {
+                loadingDiv.classList.add('hidden');
+            }
+        });
+
+        function copyHandler(textToCopy, buttonElement) {
+            const textArea = document.createElement('textarea');
+            textArea.value = textToCopy;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+            let success = false;
+            try {
+                success = document.execCommand('copy');
+            } catch (err) { console.error('複製失敗: ', err); }
+            document.body.removeChild(textArea);
+
+            const originalText = buttonElement.textContent;
+            const originalClasses = buttonElement.className;
+            if (success) {
+                buttonElement.textContent = '✅ 已複製！';
+                buttonElement.className = originalClasses.replace(/bg-gray-600|bg-blue-600|hover:bg-gray-700|hover:bg-blue-700/, 'bg-green-600');
+            } else {
+                buttonElement.textContent = '❌ 複製失敗';
+                buttonElement.className = originalClasses.replace(/bg-gray-600|bg-blue-600|hover:bg-gray-700|hover:bg-blue-700/, 'bg-red-600');
+            }
+            setTimeout(() => {
+                buttonElement.textContent = originalText;
+                buttonElement.className = originalClasses;
+            }, 2000);
+        }
+
+        copyBtn.addEventListener('click', () => {
+            const table = document.getElementById('resultTable');
+            let tsvContent = Array.from(table.querySelectorAll('tr')).map(tr => 
+                Array.from(tr.querySelectorAll('th, td')).map(cell => cell.textContent.trim()).join('\t')
+            ).join('\n');
+            copyHandler(tsvContent, copyBtn);
+        });
+        
+        copySummaryBtn.addEventListener('click', () => {
+            copyHandler(missingSummaryText.value, copySummaryBtn);
+        });
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
+
