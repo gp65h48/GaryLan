@@ -1,9 +1,8 @@
-<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>產線掃描檔確認工具 A01版</title>
+    <title>產線掃描檔確認工具 A02版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 SheetJS library 用於讀取 Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -47,9 +46,9 @@
     <div class="w-full max-w-7xl mx-auto p-6 md:p-8">
         <div class="bg-white rounded-2xl shadow-lg p-8">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-gray-800">產線掃描檔確認工具 A01版</h1>
+                <h1 class="text-3xl font-bold text-gray-800">產線掃描檔確認工具 A02版</h1>
                 <p class="text-gray-500 mt-2">請上傳 BOM Excel 檔案並選擇 PDF 所在資料夾，即可自動比對。</p>
-                <p class="text-gray-400 text-sm mt-3">製作者：Gary Lan (Gemini) 2025/10/22</p>
+                <p class="text-gray-400 text-sm mt-3">製作者：Gary Lan (Gemini) 2025/11/18</p>
             </div>
 
             <!-- 使用說明 -->
@@ -106,11 +105,18 @@
                 <!-- 步驟三：設定欄位 -->
                 <div class="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
                      <div class="bg-indigo-100 text-indigo-600 rounded-full h-12 w-12 flex items-center justify-center font-bold text-xl mb-3">3</div>
-                    <h3 class="font-semibold text-gray-700 mb-2">選擇料號欄位</h3>
-                    <select id="columnNameSelect" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                    <h3 class="font-semibold text-gray-700 mb-2">設定比對欄位</h3>
+                    
+                    <label for="sheetNameSelect" class="w-full text-left text-sm font-medium text-gray-700 mb-1">1. 選擇工作表 (Sheet)</label>
+                    <select id="sheetNameSelect" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white mb-3">
                         <option value="" disabled selected>請先上傳 Excel 檔</option>
                     </select>
-                     <p class="text-xs text-gray-500 mt-2">上傳後自動讀取欄位標題。</p>
+
+                    <label for="columnNameSelect" class="w-full text-left text-sm font-medium text-gray-700 mb-1">2. 選擇料號欄位</label>
+                    <select id="columnNameSelect" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 bg-white">
+                        <option value="" disabled selected>請先選擇工作表</option>
+                    </select>
+                     <p class="text-xs text-gray-500 mt-2">上傳 Excel 後將自動讀取。</p>
                 </div>
             </div>
 
@@ -160,7 +166,8 @@
         // DOM Elements
         const excelFileInput = document.getElementById('excelFile');
         const pdfFolderInput = document.getElementById('pdfFolder');
-        const mainAssemblyNameInput = document.getElementById('mainAssemblyName');
+        const mainAssemblyNameInput = document.getElementById('mainAssemblyName'); // <-- 修正：新增此行
+        const sheetNameSelect = document.getElementById('sheetNameSelect');
         const columnNameSelect = document.getElementById('columnNameSelect');
         const processBtn = document.getElementById('processBtn');
         const resultsDiv = document.getElementById('results');
@@ -178,6 +185,7 @@
 
         // Global state for PDF file names
         let pdfFileNames = new Set();
+        let currentWorkbook; // 儲存已讀取的 Excel 工作簿
         
         excelFileInput.addEventListener('change', async () => {
             if (excelFileInput.files.length === 0) {
@@ -185,15 +193,68 @@
                 return;
             }
             fileNameLabel.textContent = excelFileInput.files[0].name;
-            columnNameSelect.innerHTML = '<option>讀取中...</option>';
+            
+            // 更新讀取狀態
+            sheetNameSelect.innerHTML = '<option>讀取中...</option>';
+            columnNameSelect.innerHTML = '<option value="" disabled selected>請先選擇工作表</option>';
+
             try {
                 const file = excelFileInput.files[0];
                 const data = await file.arrayBuffer();
-                const workbook = XLSX.read(data, {type: 'array'});
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
+                currentWorkbook = XLSX.read(data, {type: 'array'}); // 儲存到全域變數
+                
+                const sheetNames = currentWorkbook.SheetNames;
+                sheetNameSelect.innerHTML = ''; // 清除讀取中
+                
+                if (sheetNames.length === 0) {
+                    showError('Excel 檔案中沒有找到任何工作表。');
+                    sheetNameSelect.innerHTML = '<option value="" disabled selected>無工作表</option>';
+                    return;
+                }
+
+                // 填充工作表下拉選單
+                sheetNames.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    sheetNameSelect.appendChild(option);
+                });
+
+                // 新增監聽器，當工作表改變時，重新載入欄位
+                sheetNameSelect.addEventListener('change', () => {
+                    loadColumnsForSheet(sheetNameSelect.value);
+                });
+
+                // 自動載入第一個工作表的欄位
+                loadColumnsForSheet(sheetNames[0]);
+
+            } catch (err) {
+                showError('讀取 Excel 檔案失敗，請確認檔案格式是否正確。');
+                sheetNameSelect.innerHTML = '<option value="" disabled selected>讀取失敗</option>';
+                console.error(err);
+            }
+        });
+
+        // 新增函式：根據選擇的工作表載入欄位
+        function loadColumnsForSheet(sheetName) {
+            columnNameSelect.innerHTML = '<option>讀取中...</option>';
+
+            if (!currentWorkbook || !currentWorkbook.Sheets[sheetName]) {
+                columnNameSelect.innerHTML = '<option value="" disabled selected>工作表讀取失敗</option>';
+                return;
+            }
+
+            try {
+                const worksheet = currentWorkbook.Sheets[sheetName];
                 const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
-                columnNameSelect.innerHTML = '';
+                
+                columnNameSelect.innerHTML = ''; // 清除讀取中
+                
+                if (headers.length === 0) {
+                        columnNameSelect.innerHTML = '<option value="" disabled selected>此工作表無資料</option>';
+                        return;
+                }
+
                 headers.forEach(header => {
                     if (header) {
                         const option = document.createElement('option');
@@ -203,21 +264,30 @@
                         columnNameSelect.appendChild(option);
                     }
                 });
+                    if (columnNameSelect.options.length === 0) {
+                        columnNameSelect.innerHTML = '<option value="" disabled selected>此工作表無標題</option>';
+                }
+
             } catch (err) {
-                columnNameSelect.innerHTML = '<option value="" disabled selected>讀取失敗</option>';
-                showError('讀取 Excel 欄位失敗，請確認檔案格式是否正確。');
+                showError(`讀取工作表 "${sheetName}" 的欄位失敗。`);
+                columnNameSelect.innerHTML = '<option value="" disabled selected>欄位讀取失敗</option>';
+                console.error(err);
             }
-        });
+        }
+
 
         pdfFolderInput.addEventListener('change', () => {
             if (pdfFolderInput.files.length > 0) {
-                folderNameLabel.textContent = `${pdfFolderInput.files.length} 個檔案`;
                 pdfFileNames.clear();
+                let pdfCount = 0; // 僅計算有效的 PDF 檔案
                 for (const file of pdfFolderInput.files) {
-                     if (file.name.toLowerCase().endsWith('.pdf')) {
+                     // 檢查是否為 .pdf 且檔案大小 > 0
+                     if (file.name.toLowerCase().endsWith('.pdf') && file.size > 0) {
                         pdfFileNames.add(file.name.toLowerCase());
+                        pdfCount++;
                     }
                 }
+                folderNameLabel.textContent = `${pdfCount} 個 PDF 檔案`;
             } else {
                 folderNameLabel.textContent = '尚未選擇資料夾';
             }
@@ -231,20 +301,25 @@
             copyContainer.classList.add('hidden');
             missingSummaryContainer.classList.add('hidden');
             
-            if (!excelFileInput.files[0] || pdfFolderInput.files.length === 0 || !columnNameSelect.value) {
-                showError("請完成步驟 1, 2, 3 的所有選項。");
-                return;
-            }
+            const sheetName = sheetNameSelect.value;
             const columnName = columnNameSelect.value;
 
+            if (!excelFileInput.files[0] || pdfFileNames.size === 0 || !sheetName || !columnName) {
+                showError("請完成所有選項（Excel、PDF資料夾、工作表、料號欄位）。");
+                return;
+            }
+            
             resultsDiv.classList.remove('hidden');
             loadingDiv.classList.remove('hidden');
 
             try {
-                const data = await excelFileInput.files[0].arrayBuffer();
-                const workbook = XLSX.read(data);
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
+                if (!currentWorkbook) {
+                    showError("Excel 檔案尚未載入，請重新上傳。");
+                    loadingDiv.classList.add('hidden');
+                    return;
+                }
+
+                const worksheet = currentWorkbook.Sheets[sheetName];
                 const bomDataArray = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
 
                 if (bomDataArray.length < 2) {
@@ -363,4 +438,3 @@
     </script>
 </body>
 </html>
-
