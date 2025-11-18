@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOM 工時檢查工具</title>
+    <!-- 載入 Tailwind CSS (用於美化介面) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 SheetJS (xlsx.js) (用於讀取 Excel) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* 使用 Inter 字體 */
+        body { font-family: 'Inter', sans-serif; }
+        /* 讓 input[type=file] 的按鈕更好看 */
+        input[type=file]::file-selector-button {
+            @apply bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer transition-all duration-200 hover:bg-blue-600;
+            border: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+        
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-4">BOM 工時檢查工具 (Excel & 資料夾比對)</h1>
+        
+        <!-- 新增: 使用說明 -->
+        <details class="mb-6 bg-gray-50 border border-gray-200 rounded-lg">
+            <summary class="text-lg font-semibold text-gray-700 p-4 cursor-pointer hover:bg-gray-100 transition-colors">
+                點此展開「使用說明」
+            </summary>
+            <div class="p-4 border-t border-gray-200">
+                <ol class="list-decimal list-inside space-y-3 text-gray-600">
+                    <li>
+                        <strong>步驟 1: 選擇 BOM Excel 檔案</strong>
+                        <p class="text-sm pl-4">點擊按鈕，選擇您的 BOM Excel 檔案 (<code>.xlsx</code> 或 <code>.xls</code>)。</p>
+                    </li>
+                    <li>
+                        <strong>步驟 2: 選擇 Excel 工作表</strong>
+                        <p class="text-sm pl-4">從下拉選單中選擇包含 BOM 資料的分頁。程式會自動尋找 <code>COMPONENT</code> 和 <code>信邦料號</code> 這兩個欄位。</p>
+                    </li>
+                    <li>
+                        <strong>步驟 3: 選擇要比對的資料夾</strong>
+                        <p class="text-sm pl-4">選擇存放工時檔案的資料夾。瀏覽器會要求您授權 (點擊 "上傳" 或 "允許")，這僅為讀取檔案名稱列表，檔案不會離開您的電腦。</p>
+                    </li>
+                </ol>
+                <hr class="my-4">
+                <h4 class="text-md font-semibold text-gray-800 mb-2">重要規則：</h4>
+                <ul class="list-disc list-inside space-y-2 text-gray-600">
+                    <li>
+                        <strong>BOM 讀取規則:</strong>
+                        <p class="text-sm pl-4">程式只會讀取「信邦料號」欄位中，內容以 <code>A9</code> 開頭的資料列。其他 (如空白或 A8 開頭) 將會被忽略。</p>
+                    </li>
+                    <li>
+                        <strong>檔案比對邏輯:</strong>
+                        <p class="text-sm pl-4">程式會尋找名稱符合 <code>[COMPONENT]_[信邦料號]_[任意文字]</code> 格式的檔案。</p>
+                    </li>
+                    <li>
+                        <strong><code>A9*</code> 萬用字元:</strong>
+                        <p class="text-sm pl-4">
+                            如果 BOM 中的「信邦料號」為 <code>A9*</code>，程式會自動將其視為 <code>A9</code> (移除 <code>*</code>) 來建立比對前綴。
+                            <br>
+                            <strong>範例：</strong> BOM 項目為 <code>853-065316-001</code> / <code>A9*</code>，
+                            <br>
+                            程式會尋找 <code>853-065316-001_A9_</code> 開頭的檔案 (例如: <code>853-065316-001_A9_工時.xlsx</code>)。
+                        </p>
+                    </li>
+                    <li>
+                        <strong>結果說明:</strong>
+                        <ul class="list-none pl-8 text-sm space-y-1 mt-1">
+                            <li><strong class="text-red-600">遺失的檔案:</strong> BOM (A9開頭) 中有列出，但在資料夾中找不到對應檔案的項目。</li>
+                            <li><strong class="text-green-600">找到的檔案:</strong> BOM (A9開頭) 中有列出，且成功在資料夾中找到對應檔案的項目。</li>
+                            <li><strong class="text-gray-700">資料夾中未比對到的檔案:</strong> 存在於資料夾中，但沒有對應到任何 BOM (A9開頭) 項目的檔案 (可能是多餘的檔案)。</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </details>
+        
+        <!-- 訊息提示框 -->
+        <div id="messageBox" class="hidden p-4 rounded-lg mb-6 text-center"></div>
+
+        <!-- 步驟一: 選擇 BOM 檔案 -->
+        <div class="mb-6">
+            <label class="block text-xl font-semibold text-gray-700 mb-2">步驟 1: 選擇 BOM Excel 檔案</label>
+            <input type="file" id="bomFileInput" accept=".xlsx, .xls" class="w-full text-gray-600 p-2 border rounded-lg">
+        </div>
+
+        <!-- 步驟二: 選擇工作表 -->
+        <div class="mb-6">
+            <label for="sheetSelector" class="block text-xl font-semibold text-gray-700 mb-2">步驟 2: 選擇 Excel 工作表</label>
+            <select id="sheetSelector" class="w-full p-3 border rounded-lg bg-gray-50 cursor-pointer" disabled>
+                <option value="">(請先上傳 BOM 檔案)</option>
+            </select>
+        </div>
+
+        <!-- 步驟三: 選擇資料夾 -->
+        <div class="mb-6">
+            <label class="block text-xl font-semibold text-gray-700 mb-2">步驟 3: 選擇要比對的資料夾</label>
+            <p class="text-sm text-gray-500 mb-2">
+                注意：這將會讀取您選定的資料夾中所有檔案的「名稱列表」以進行比對，並不會上傳檔案。
+            </p>
+            <!-- 'webkitdirectory' 允許選擇資料夾 -->
+            <input type="file" id="folderInput" webkitdirectory directory multiple class="w-full text-gray-600 p-2 border rounded-lg" disabled>
+        </div>
+
+        <!-- 處理中... -->
+        <div id="loadingIndicator" class="hidden flex items-center justify-center my-6">
+            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-xl text-gray-700">處理中，請稍候...</span>
+        </div>
+
+        <!-- 步驟四: 顯示結果 -->
+        <div id="resultsArea" class="hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">比對結果</h2>
+            <div id="summary" class="text-lg font-semibold mb-4 p-4 bg-gray-50 rounded-lg"></div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 遺失的檔案 -->
+                <div>
+                    <h3 id="missingTitle" class="text-xl font-bold text-red-600 mb-2">遺失的檔案 (0)</h3>
+                    <div id="missingList" class="h-64 overflow-y-auto bg-red-50 p-3 rounded-lg border border-red-200">
+                        <p class="text-gray-500">無</p>
+                    </div>
+                </div>
+                <!-- 找到的檔案 -->
+                <div>
+                    <h3 id="foundTitle" class="text-xl font-bold text-green-600 mb-2">找到的檔案 (0)</h3>
+                    <div id="foundList" class="h-64 overflow-y-auto bg-green-50 p-3 rounded-lg border border-green-200">
+                        <p class="text-gray-500">無</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 新增: 資料夾中未比對到的檔案 -->
+            <div class="mt-8">
+                <h3 id="unmatchedTitle" class="text-xl font-bold text-gray-700 mb-2">資料夾中未比對到的檔案 (0)</h3>
+                <div id="unmatchedList" class="h-64 overflow-y-auto bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <p class="text-gray-500">無</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // 獲取所有 DOM 元素
+        const bomFileInput = document.getElementById('bomFileInput');
+        const sheetSelector = document.getElementById('sheetSelector');
+        const folderInput = document.getElementById('folderInput');
+        const messageBox = document.getElementById('messageBox');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const resultsArea = document.getElementById('resultsArea');
+        const summary = document.getElementById('summary');
+        const missingTitle = document.getElementById('missingTitle');
+        const missingList = document.getElementById('missingList');
+        const foundTitle = document.getElementById('foundTitle');
+        const foundList = document.getElementById('foundList');
+        // 新增: 獲取未比對列表的 DOM
+        const unmatchedTitle = document.getElementById('unmatchedTitle');
+        const unmatchedList = document.getElementById('unmatchedList');
+
+        // 全域變數，用於儲存解析後的資料
+        let selectedBomFile = null;
+        let bomData = []; // 儲存 { component: '...', sinbon: '...' }
+
+        // --- 步驟 1: 處理 BOM 檔案上傳 ---
+        bomFileInput.addEventListener('change', (event) => {
+            selectedBomFile = event.target.files[0];
+            if (!selectedBomFile) return;
+
+            showMessage('讀取 Excel 檔案中...', 'info');
+            showLoading(true);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // 清空並填入工作表下拉選單
+                    sheetSelector.innerHTML = '<option value="">(請選擇一個工作表)</option>';
+                    workbook.SheetNames.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        sheetSelector.appendChild(option);
+                    });
+
+                    sheetSelector.disabled = false;
+                    folderInput.disabled = true;
+                    resultsArea.classList.add('hidden');
+                    showMessage('BOM 檔案讀取成功！請選擇工作表。', 'success');
+                } catch (err) {
+                    showMessage(`讀取 Excel 失敗: ${err.message}`, 'error');
+                } finally {
+                    showLoading(false);
+                }
+            };
+            reader.readAsArrayBuffer(selectedBomFile);
+        });
+
+        // --- 步驟 2: 處理工作表選擇 ---
+        sheetSelector.addEventListener('change', async (event) => {
+            const sheetName = event.target.value;
+            if (!sheetName || !selectedBomFile) {
+                folderInput.disabled = true;
+                return;
+            }
+
+            showMessage('正在解析工作表...', 'info');
+            showLoading(true);
+            
+            // 延遲以確保 loading 動畫顯示
+            await new Promise(res => setTimeout(res, 50)); 
+
+            try {
+                const data = await selectedBomFile.arrayBuffer();
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[sheetName];
+                
+                // 將工作表轉換為 JSON 陣列 (header: 1 代表輸出為陣列的陣列)
+                const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                // --- 智能尋找標頭 ---
+                let headerRowIndex = -1;
+                let componentIndex = -1;
+                let sinbonIndex = -1;
+
+                // 掃描前 20 行來尋找標頭
+                for (let i = 0; i < Math.min(json.length, 20); i++) {
+                    const row = json[i];
+                    if (Array.isArray(row)) {
+                        // 嘗試尋找 "COMPONENT" 和 "信邦料號"
+                        const cIdx = row.findIndex(cell => String(cell).trim() === 'COMPONENT');
+                        const sIdx = row.findIndex(cell => String(cell).trim() === '信邦料號');
+                        
+                        if (cIdx > -1 && sIdx > -1) {
+                            headerRowIndex = i;
+                            componentIndex = cIdx;
+                            sinbonIndex = sIdx;
+                            break;
+                        }
+                    }
+                }
+
+                if (headerRowIndex === -1) {
+                    throw new Error("在工作表中找不到 'COMPONENT' 和 '信邦料號' 這兩個標頭欄位。");
+                }
+
+                // --- 提取資料 ---
+                bomData = []; // 清空舊資料
+                for (let i = headerRowIndex + 1; i < json.length; i++) {
+                    const row = json[i];
+                    
+                    // 確保 row[index] 不是 undefined 或 null
+                    const component = String(row[componentIndex] || '').trim();
+                    const sinbon = String(row[sinbonIndex] || '').trim();
+
+                    // 僅在兩者都有值、且信邦料號以 "A9" 開頭時才加入
+                    if (component && sinbon && sinbon.startsWith('A9')) {
+                        bomData.push({ component, sinbon });
+                    }
+                }
+
+                if (bomData.length === 0) {
+                    // 這裡不該拋出錯誤，而是顯示一個提示
+                    // throw new Error("找到了標頭，但未能在指定欄位下讀取到任何 (信邦料號為 A9 開頭) 的資料。");
+                    showMessage('找到了標頭，但未能在指定欄位下讀取到任何 (信邦料號為 A9 開頭) 的資料。請檢查BOM內容。', 'success'); // 使用 success 樣式但提示
+                }
+
+                folderInput.disabled = false;
+                resultsArea.classList.add('hidden');
+                // 更新提示訊息，明確告知是 "A9" 開頭的筆數
+                if (bomData.length > 0) {
+                    showMessage(`工作表解析成功，讀取到 ${bomData.length} 筆 (信邦料號為 A9 開頭) 的資料。請選擇資料夾。`, 'success');
+                } else {
+                    // 如果 bomData 為 0，上面的訊息已經顯示過了，這裡可以不用再顯示
+                }
+
+            } catch (err) {
+                showMessage(`解析工作表失敗: ${err.message}`, 'error');
+                folderInput.disabled = true;
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        // --- 步驟 3: 處理資料夾輸入並執行比對 ---
+        folderInput.addEventListener('change', async (event) => {
+            const files = event.target.files;
+            if (!files || files.length === 0) {
+                showMessage('您沒有選擇任何資料夾或資料夾為空。', 'error');
+                return;
+            }
+            if (bomData.length === 0) {
+                showMessage('BOM 資料為空 (未讀取到 A9 開頭的資料)，無法比對。請先載入有效的 BOM。', 'error');
+                return;
+            }
+
+            showMessage('正在比對檔案中...', 'info');
+            showLoading(true);
+            resultsArea.classList.add('hidden');
+            
+            // 延遲以確保 loading 動畫顯示
+            await new Promise(res => setTimeout(res, 50)); 
+
+            // 將檔案列表轉換為純名稱陣列
+            // 檔案物件的 'name' 屬性是我們要比對的
+            const folderFileNames = Array.from(files).map(f => f.name);
+
+            // --- 核心比對邏輯 ---
+            const foundListItems = [];
+            const missingListItems = [];
+
+            for (const entry of bomData) {
+                const { component, sinbon } = entry;
+                
+                // 建立要搜尋的檔案名前綴
+                // 範例: 'XXX-XXXXXX-XXX_A9XXXXXX_' 或 'XXX-XXXXXX-XXX_A9*_'
+                // const expectedPrefix = `${component}_${sinbon}_`;
+
+                // --- 修正: 處理 A9* 萬用字元 ---
+                // 如果 sinbon 包含 '*' (例如 "A9*")，將其視為萬用字元
+                // 1. 移除 '*' (e.g., "A9*" -> "A9")
+                // 2. 建立前綴 (e.g., "COMPONENT_A9_")
+                const prefixBase = sinbon.endsWith('*') ? sinbon.slice(0, -1) : sinbon;
+                const expectedPrefix = `${component}_${prefixBase}_`;
+
+                // 檢查是否有任何檔案名稱是以這個前綴開頭的
+                // 這能處理 "A9*" 萬用字元，以及 "工時" 部分的變動
+                const foundFile = folderFileNames.find(fileName => fileName.startsWith(expectedPrefix));
+
+                if (foundFile) {
+                    foundListItems.push({ ...entry, foundFile });
+                } else {
+                    missingListItems.push(entry);
+                }
+            }
+
+            // --- 新增: 找出資料夾中未被比對到的檔案 ---
+            // 1. 取得所有 "被BOM找到" 的檔案名稱 (使用 Set 結構)
+            const matchedFileNames = new Set(foundListItems.map(item => item.foundFile));
+            
+            // 2. 過濾 folderFileNames，找出 "不在" matchedFileNames 中的檔案
+            const unmatchedFolderFiles = folderFileNames.filter(fileName => !matchedFileNames.has(fileName));
+
+
+            // --- 渲染結果 ---
+            // 將未比對的檔案列表傳入 renderResults
+            renderResults(foundListItems, missingListItems, unmatchedFolderFiles);
+            showMessage('比對完成！', 'success');
+            showLoading(false);
+        });
+
+        // --- 輔助功能: 渲染結果 ---
+        // 增加第三個參數 unmatched
+        function renderResults(found, missing, unmatched) {
+            // 更新統計
+            const total = bomData.length;
+            summary.innerHTML = `
+                BOM 總筆數 (A9開頭): <strong class="text-blue-600">${total}</strong> | 
+                找到的檔案: <strong class="text-green-600">${found.length}</strong> | 
+                遺失的檔案: <strong class="text-red-600">${missing.length}</strong>
+            `;
+
+            // 更新標題
+            missingTitle.textContent = `遺失的檔案 (${missing.length})`;
+            foundTitle.textContent = `找到的檔案 (${found.length})`;
+
+            // 渲染遺失列表
+            if (missing.length === 0) {
+                missingList.innerHTML = '<p class="text-gray-500 p-2">太好了！沒有遺失的檔案。</p>';
+            } else {
+                missingList.innerHTML = missing.map(item => {
+                    // 處理 A9* 的顯示
+                    const prefixBase = item.sinbon.endsWith('*') ? item.sinbon.slice(0, -1) : item.sinbon;
+                    const expectedPrefix = `${item.component}_${prefixBase}_*`;
+                    return `
+                    <div class="p-2 border-b text-sm">
+                        <span class="font-semibold text-gray-700">${item.component}</span><br>
+                        <span class="text-red-700">${item.sinbon}</span>
+                        <p class="text-xs text-red-500">(應為: ${expectedPrefix})</p>
+                    </div>`
+                }).join('');
+            }
+
+            // 渲染找到列表
+            if (found.length === 0) {
+                foundList.innerHTML = '<p class="text-gray-500 p-2">沒有找到任何對應的檔案。</p>';
+            } else {
+                foundList.innerHTML = found.map(item => 
+                    `<div class="p-2 border-b text-sm">
+                        <span class="font-semibold text-gray-700">${item.component}</span><br>
+                        <span class="text-gray-600">${item.sinbon}</span>
+                        <p class="text-xs text-green-700">-> ${item.foundFile}</p>
+                    </div>`
+                ).join('');
+            }
+
+            // --- 新增: 渲染未比對到的檔案列表 ---
+            unmatchedTitle.textContent = `資料夾中未比對到的檔案 (${unmatched.length})`;
+            if (unmatched.length === 0) {
+                unmatchedList.innerHTML = '<p class="text-gray-500 p-2">資料夾中所有檔案均已成功比對。</p>';
+            } else {
+                unmatchedList.innerHTML = unmatched.map(fileName => 
+                    `<div class="p-2 border-b text-sm">
+                        <span class="font-semibold text-gray-700">${fileName}</span>
+                    </div>`
+                ).join('');
+            }
+
+            resultsArea.classList.remove('hidden');
+        }
+
+        // --- 輔助功能: 顯示訊息 ---
+        function showMessage(message, type = 'info') {
+            messageBox.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'bg-blue-100', 'text-blue-700');
+            
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+            } else {
+                messageBox.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            
+            messageBox.textContent = message;
+        }
+
+        // --- 輔助功能: 顯示/隱藏 Loading ---
+        function showLoading(isLoading) {
+            if (isLoading) {
+                loadingIndicator.classList.remove('hidden');
+            } else {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
