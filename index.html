@@ -3,78 +3,143 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gary Lan 的工具集</title>
+    <title>Gary Lan 的工具集入口</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Inter', '微軟正黑體', sans-serif;
+            font-family: 'Inter', '微軟正黑體', 'Microsoft JhengHei', sans-serif;
+            background-color: #f8fafc;
+        }
+        .tool-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .tool-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="min-h-screen py-12 px-4">
 
-    <div class="text-center p-8 bg-white rounded-xl shadow-lg max-w-4xl mx-auto">
-        <header class="mb-8">
-            <h1 class="text-4xl font-bold text-gray-900">Gary Lan 的工具集</h1>
-            <p class="mt-2 text-lg text-gray-600">一個存放實用整合工具的地方</p>
+    <div class="max-w-6xl mx-auto">
+        <!-- 標頭區塊 -->
+        <header class="text-center mb-12">
+            <div class="inline-block bg-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-sm font-bold mb-4 tracking-wide uppercase">
+                Productivity Suite
+            </div>
+            <h1 class="text-5xl font-extrabold text-gray-900 mb-4 tracking-tight">Gary Lan 的工具集</h1>
+            <p class="text-xl text-gray-500 max-w-2xl mx-auto">
+                專為提升工作效率設計的整合工具庫，涵蓋 BOM 處理、解析與驗證功能。
+            </p>
         </header>
 
-        <main>
-            <div class="border-t border-gray-200 pt-8">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-6">可用工具</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    
-                    <!-- BOM Tool Card 1 -->
-                    <div class="bg-gray-50 p-6 rounded-lg text-left flex flex-col justify-between hover:shadow-md transition-shadow">
-                        <div>
-                            <h3 class="text-xl font-bold text-indigo-700">CLS_LAM_BOM 整合轉檔工具</h3>
-                            <p class="text-gray-600 mt-2">將多個分散的BOM來源檔，整合成一份標準格式的多階層BOM。</p>
-                        </div>
-                        <a href="bom_tool.html" class="mt-4 inline-block text-center w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-sm">
-                            前往工具 (A02版)
-                        </a>
-                    </div>
-
-                    <!-- BOM Tool Card 2 -->
-                    <div class="bg-gray-50 p-6 rounded-lg text-left flex flex-col justify-between hover:shadow-md transition-shadow">
-                        <div>
-                            <h3 class="text-xl font-bold text-purple-700">RPABOM對規格書比對工具</h3>
-                            <p class="text-gray-600 mt-2">解析BOM、交叉比對規格書是否存在並驗證版本。</p>
-                        </div>
-                        <a href="quote_bom_parser.html" class="mt-4 inline-block text-center w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 transition shadow-sm">
-                            前往工具 (A21版)
-                        </a>
-                    </div>
-
-                    <!-- New BOM PDF Checker Tool Card -->
-                    <div class="bg-gray-50 p-6 rounded-lg text-left flex flex-col justify-between hover:shadow-md transition-shadow">
-                        <div>
-                            <h3 class="text-xl font-bold text-teal-700">產線掃描檔確認工具</h3>
-                            <p class="text-gray-600 mt-2">根據BOM料號，確認對應的產線掃描文件 (如PDF) 是否存在。</p>
-                        </div>
-                        <a href="bom_pdf_checker.html" class="mt-4 inline-block text-center w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 transition shadow-sm">
-                            前往工具 (A01版)
-                        </a>
-                    </div>
-
-                    <!-- [NEW] BOM Time Checker Tool Card -->
-                    <div class="bg-gray-50 p-6 rounded-lg text-left flex flex-col justify-between hover:shadow-md transition-shadow">
-                        <div>
-                            <h3 class="text-xl font-bold text-green-700">BOM 工時檢查工具</h3>
-                            <p class="text-gray-600 mt-2">檢查BOM表中的工時是否檔名有對應到並存在資料夾內。</p>
-                        </div>
-                        <a href="bom_time_checker.html" class="mt-4 inline-block text-center w-full px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 transition shadow-sm">
-                            前往工具 (A01版)
-                        </a>
-                    </div>
-
+        <!-- 工具列表 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            
+            <!-- [重點新增] Sinbon Categorizer Card -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-amber-100 flex flex-col justify-between relative overflow-hidden">
+                <div class="absolute top-0 right-0 mt-4 mr-4">
+                    <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2.5 py-1 rounded-md">NEW</span>
                 </div>
+                <div>
+                    <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-6 text-amber-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><polyline points="14 2 14 8 20 8"/><path d="M2 15h10"/><path d="m9 18 3-3-3-3"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">樣單抓取器</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        Sinbon Categorizer：專為樣單數據設計的抓取與分類工具，優化資料前處理流程。
+                    </p>
+                </div>
+                <a href="Sinbon%20Categorizer" class="group flex items-center justify-center w-full px-6 py-4 text-lg font-semibold text-white bg-amber-600 rounded-xl hover:bg-amber-700 transition duration-200">
+                    立即使用
+                    <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
             </div>
-        </main>
 
-        <footer class="mt-12 text-sm text-gray-500">
-            <p>&copy; 2025 Gary Lan (Gemini). All rights reserved.</p>
+            <!-- BOM Tool Card 1 -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                <div>
+                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-6 text-indigo-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="3" x2="21" y1="15" y2="15"/><line x1="9" x2="9" y1="3" y2="21"/><line x1="15" x2="15" y1="3" y2="21"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">BOM 整合轉檔工具</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        將多個分散的 BOM 來源檔整合成一份標準格式的多階層 BOM 文件。
+                    </p>
+                </div>
+                <a href="bom_tool.html" class="group flex items-center justify-center w-full px-6 py-4 text-lg font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition duration-200">
+                    前往工具 (A02)
+                    <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
+            </div>
+
+            <!-- BOM Tool Card 2 -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                <div>
+                    <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-6 text-purple-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/><path d="M21 12H9"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">RPABOM 比對工具</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        自動化解析 BOM 內容，與規格書進行交叉比對並驗證版本準確性。
+                    </p>
+                </div>
+                <a href="quote_bom_parser.html" class="group flex items-center justify-center w-full px-6 py-4 text-lg font-semibold text-white bg-purple-600 rounded-xl hover:bg-purple-700 transition duration-200">
+                    前往工具 (A21)
+                    <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
+            </div>
+
+            <!-- PDF Checker Tool Card -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                <div>
+                    <div class="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center mb-6 text-teal-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">產線掃描檔確認</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        根據 BOM 料號自動檢查資料夾內是否存在對應的 PDF 掃描文件。
+                    </p>
+                </div>
+                <a href="bom_pdf_checker.html" class="group flex items-center justify-center w-full px-6 py-4 text-lg font-semibold text-white bg-teal-600 rounded-xl hover:bg-teal-700 transition duration-200">
+                    前往工具 (A01)
+                    <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
+            </div>
+
+            <!-- Time Checker Tool Card -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                <div>
+                    <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-6 text-green-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">BOM 工時檢查工具</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        系統化檢查 BOM 中的工時設定是否與資料夾內的參考檔案一致。
+                    </p>
+                </div>
+                <a href="bom_time_checker.html" class="group flex items-center justify-center w-full px-6 py-4 text-lg font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 transition duration-200">
+                    前往工具 (A01)
+                    <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
+            </div>
+
+        </div>
+
+        <footer class="mt-20 border-t border-gray-200 pt-8 text-center text-gray-500">
+            <p class="mb-2 font-medium">Gary Lan's Engineering Tools</p>
+            <p class="text-sm">&copy; 2026 Gary Lan. Built with Tailwind CSS & Gemini.</p>
         </footer>
     </div>
 
