@@ -215,6 +215,7 @@ ${compList}
 
             const finalize = () => {
                 const cleanBOM = bomData.filter(row => !String(row['Level']).toLowerCase().includes('level') && !String(row['POS']).startsWith('70'));
+                
                 const final = cleanBOM.map((row, idx) => {
                     const newRow = { ...row };
                     const comp = String(newRow['COMPONENT']).trim();
@@ -222,13 +223,15 @@ ${compList}
                     const price = String(newRow['單價'] || '').trim();
                     const snpPn = String(newRow['信邦料號'] || '').trim();
                     
-                    newRow._isPriceMissing = snpPn === '' && (!price || price === '0' || price === '0.0');
+                    // 重複偵測
                     if (comp !== '' || desc !== '') {
                         const target = comp !== '' ? comp : desc;
                         const prevComp = cleanBOM[idx - 1] ? (String(cleanBOM[idx - 1]['COMPONENT']).trim() || String(cleanBOM[idx - 1]['DESCRIPTION']).trim()) : null;
                         const nextComp = cleanBOM[idx + 1] ? (String(cleanBOM[idx + 1]['COMPONENT']).trim() || String(cleanBOM[idx + 1]['DESCRIPTION']).trim()) : null;
                         newRow._remark = (target === prevComp || target === nextComp) ? "有重複項" : "";
                     }
+
+                    // 1. 決定最終的信邦料號
                     if (newRow._autoLabel) {
                         newRow['信邦料號'] = newRow._autoLabel;
                     } else {
@@ -238,8 +241,15 @@ ${compList}
                             newRow['信邦料號'] = manual.category !== 'NA' ? manual.category : 'A*';
                             newRow['_aiSummary'] = manual.summary;
                             newRow['_vendor'] = manual.vendor;
-                        } else if (snpPn === '') newRow['信邦料號'] = 'A*';
+                        } else if (snpPn === '') {
+                            newRow['信邦料號'] = 'A*';
+                        }
                     }
+
+                    // 2. 判定是否缺價格 (需詢價)：有信邦料號 且 (單價為 0 或空白)
+                    const finalPn = String(newRow['信邦料號'] || '').trim();
+                    newRow._isPriceMissing = (finalPn !== '') && (!price || price === '0' || price === '0.0');
+
                     return newRow;
                 });
 
@@ -397,7 +407,7 @@ ${compList}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-center">
                                 <StatBox title="70XX 排除" count={results.excluded70xx.length} />
                                 <StatBox title="A9* 母階" count={results.full.filter(r=>r['信邦料號']==='A9*').length} color="text-indigo-600" />
-                                <StatBox title="缺價格項" count={results.priceMissing.length} color="text-red-500" />
+                                <StatBox title="缺價格項" count={results.full.filter(r=>r._isPriceMissing).length} color="text-red-500" />
                                 <StatBox title="詢價清單" count={results.priceMissing.length} highlight />
                             </div>
 
