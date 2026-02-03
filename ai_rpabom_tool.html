@@ -252,12 +252,17 @@ ${compList}
                 setCurrentStep('results');
             };
 
-            // 匯出功能：加入大母階動態命名
+            // 匯出功能：修正檔名前導底線問題
             const download = () => {
                 const wb = XLSX.utils.book_new();
-                // 抓取大母階料號 (通常為第一筆資料)
-                const mainMaterPN = results.full[0]?.MaterPN || "Unknown";
                 
+                // 抓取 Level 1 的 COMPONENT
+                const level1Item = results.full.find(r => String(r.Level).trim() === "1");
+                const mainComponentName = (level1Item?.COMPONENT || "未知料號").trim();
+                
+                // 清理非法字元（避免瀏覽器自動轉底線）
+                const safeFileName = mainComponentName.replace(/[\\\/:*?"<>|]/g, "");
+
                 const addSheet = (data, name, highlightPrice = false, filterMissing = false) => {
                     let targetData = filterMissing ? data.filter(r => r._isPriceMissing) : data;
                     const exportData = targetData.map(r => {
@@ -294,7 +299,8 @@ ${compList}
                 addSheet(results.full, "4.RPABOM(分類完成)");
                 addSheet(results.priceMissing, "5.RPABOM(需詢價)");
 
-                XLSX.writeFile(wb, `"${mainMaterPN}"詢價分析報告.xlsx`);
+                // 移除原有的引號格式，直接輸出純淨檔名
+                XLSX.writeFile(wb, `${safeFileName}詢價分析報告.xlsx`);
             };
 
             return (
