@@ -158,10 +158,10 @@
                 const compList = needsSpecItems.map(item => {
                     const c = String(item.COMPONENT).trim();
                     const d = String(item.DESCRIPTION).trim();
-                    return c ? c : `(僅描述: ${d})`;
+                    return c ? c : `DESC_${d}`;
                 }).filter((v, i, a) => a.indexOf(v) === i).join('\n');
 
-                return `你現在是一位專業的電子業採購與物料專家。請分析文件並針對以下出現的「元件料號」或「描述」提供精確的規格解讀與分類建議：
+                return `你現在是一位專業的電子業採購與物料專家。請分析文件並針對以下出現的「元件料號」提供精確的規格解讀與分類建議：
 
 【待查詢清單】
 ${compList}
@@ -182,8 +182,8 @@ ${compList}
    * A0*: 原物料/包裝材料/消耗品
 
 【輸出格式要求】
-嚴格遵守以下格式（若資訊無法判別請標明 NA）：
-[料號] | [簡短敘述] | [分類代碼] | [供應商]`;
+嚴格遵守以下格式，且每一筆資料佔一行（若資訊無法判別請標明 NA）：
+[料號或DESC_ID] | [簡短敘述] | [分類代碼] | [供應商]`;
             }, [needsSpecItems]);
 
             const copyPrompt = () => {
@@ -197,23 +197,44 @@ ${compList}
                 setTimeout(() => setCopySuccess(false), 2000);
             };
 
+            // 深度優化後的匹配解析器：支援中括號與隨意換行
             const handleParse = () => {
                 const newMap = { ...manualInterpretations };
+                let matchCount = 0;
+                
                 needsSpecItems.forEach((item, idx) => {
                     const comp = String(item.COMPONENT).trim();
                     const desc = String(item.DESCRIPTION).trim();
-                    const id = comp ? comp : `\\(僅描述: ${desc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`;
-                    const escapedId = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const regex = new RegExp(`${escapedId}\\s*\\|\\s*([^|\\n]+)\\s*\\|\\s*([^|\\n]+)\\s*\\|\\s*([^|\\n]+)`, 'i');
+                    const searchId = comp ? comp : `DESC_${desc}`;
+                    const escapedId = searchId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    
+                    // 優化正則：
+                    // 1. (?:\[)? : 選擇性匹配左括號
+                    // 2. (?:\])? : 選擇性匹配右括號
+                    // 3. [^|]+? : 匹配分隔符中間的文字
+                    const regex = new RegExp(`(?:[^\\w-]|^)(?:\\[)?${escapedId}(?:\\])?\\s*\\|\\s*([^|\\n]+)\\s*\\|\\s*([^|\\n]+)(?:\\s*\\|\\s*([^|\\n\\[\\]]+))?`, 'mi');
+                    
                     const match = bulkInput.match(regex);
                     if (match) {
+                        matchCount++;
                         let cat = match[2].trim();
+                        // 確保代碼含有星號
                         if (!['文件', '韌體', 'NA'].includes(cat) && !cat.includes('*')) cat += '*';
-                        newMap[idx] = { summary: match[1].trim(), category: cat, vendor: match[3].trim() };
+                        newMap[idx] = { 
+                            summary: match[1].trim(), 
+                            category: cat, 
+                            vendor: match[3] ? match[3].trim() : "NA" 
+                        };
                     }
                 });
+                
                 setManualInterpretations(newMap);
                 setBulkInput('');
+                if(matchCount === 0) {
+                    alert("偵測失敗！請檢查貼入的格式是否正確，必須包含：\n[料號] | [敘述] | [代碼]");
+                } else {
+                    console.log(`成功匹配 ${matchCount} 筆資料`);
+                }
             };
 
             const finalize = () => {
@@ -238,7 +259,6 @@ ${compList}
                     const manual = manualInterpretations[needsIdx];
                     const isParentInPage3 = comp !== "" && page3MaterPNs.has(comp);
 
-                    // 1. 決定基礎代碼
                     let baseCat = "";
                     if (manual) {
                         baseCat = manual.category !== 'NA' ? manual.category : 'A*';
@@ -250,7 +270,6 @@ ${compList}
                         baseCat = snpPn;
                     }
 
-                    // 2. 整合 A9* 邏輯：新增檢查 baseCat 是否已為 A9 開頭
                     if (isParentInPage3) {
                         const isSpecialLabel = ['圖面', '文件', '韌體'].includes(baseCat);
                         const alreadyA9 = baseCat.startsWith('A9');
@@ -391,7 +410,7 @@ ${compList}
                                 {needsSpecItems.map((item, idx) => {
                                     const manual = manualInterpretations[idx];
                                     return (
-                                        <div key={idx} className={`bg-white p-6 rounded-[2rem] border-2 transition-all ${manual ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-100'}`}>
+                                        <div key={idx} className={`bg-white p-6 rounded-[2rem] border-2 transition-all ${manual ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-100 opacity-80'}`}>
                                             <div className="flex justify-between items-start mb-2">
                                                 <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase">POS {item.POS}</span>
                                                 {manual && <Icon name="CheckCircle2" size={16} className="text-emerald-500" />}
