@@ -30,18 +30,37 @@
             </div>
             <h1 class="text-5xl font-extrabold text-gray-900 mb-4 tracking-tight">Gary Lan 的工具集</h1>
             <p class="text-xl text-gray-500 max-w-2xl mx-auto">
-                專為提升工作效率設計的整合工具庫，目前已整合 7 項專業功能。
+                專為提升工作效率設計的整合工具庫，目前已整合 8 項專業功能。
             </p>
         </header>
 
         <!-- 工具列表 -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             
-            <!-- 1. AI RPABOM Tool Card -->
-            <div class="tool-card bg-white p-8 rounded-2xl border border-rose-100 flex flex-col justify-between relative overflow-hidden">
+            <!-- 1. BOM Classifier Pro Card -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-cyan-100 flex flex-col justify-between relative overflow-hidden">
                 <div class="absolute top-0 right-0 mt-4 mr-4">
-                    <span class="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-1 rounded-md">NEW</span>
+                    <span class="bg-cyan-100 text-cyan-700 text-xs font-bold px-2.5 py-1 rounded-md">NEW</span>
                 </div>
+                <div>
+                    <div class="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center mb-6 text-cyan-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v6"/><rect width="8" height="8" x="2" y="2" rx="2"/><rect width="8" height="8" x="14" y="2" rx="2"/><path d="M20 12v8a2 2 0 0 1-2 2h-6"/></svg>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-3">BOM 詢價分類專業版</h3>
+                    <p class="text-gray-600 mb-6 leading-relaxed">
+                        將處理好的 BOM 自動分類為電阻、電容、連接器等屬性，優化轉貼至詢價表單的效率。
+                    </p>
+                </div>
+                <a href="BOM_Classifier_Pro.html" class="group flex items-center justify-center w-full px-6 py-4 text-lg font-semibold text-white bg-cyan-600 rounded-xl hover:bg-cyan-700 transition duration-200">
+                    前往工具 (A01)
+                    <svg class="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </a>
+            </div>
+
+            <!-- 2. AI RPABOM Tool Card -->
+            <div class="tool-card bg-white p-8 rounded-2xl border border-rose-100 flex flex-col justify-between relative overflow-hidden">
                 <div>
                     <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center mb-6 text-rose-600">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M12 12L2.1 12.3"/><path d="M12 12l9.8 3.6"/><path d="M11 7a7.7 7.7 0 0 0-7 5"/><path d="M12.5 15a8.5 8.5 0 0 0 7.5 3"/></svg>
@@ -59,11 +78,8 @@
                 </a>
             </div>
 
-            <!-- 2. BOM Comparator Card -->
+            <!-- 3. BOM Comparator Card -->
             <div class="tool-card bg-white p-8 rounded-2xl border border-slate-100 flex flex-col justify-between relative overflow-hidden">
-                <div class="absolute top-0 right-0 mt-4 mr-4">
-                    <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-md">NEW</span>
-                </div>
                 <div>
                     <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mb-6 text-slate-600">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M21 3 14.5 9.5"/><path d="M3 3l6.5 6.5"/><path d="M16 21h5v-5"/><path d="M8 21H3v-5"/><path d="M21 21l-6.5-6.5"/><path d="M3 21l6.5-6.5"/></svg>
@@ -81,7 +97,7 @@
                 </a>
             </div>
 
-            <!-- 3. Sinbon Categorizer Card -->
+            <!-- 4. Sinbon Categorizer Card -->
             <div class="tool-card bg-white p-8 rounded-2xl border border-amber-100 flex flex-col justify-between relative overflow-hidden">
                 <div>
                     <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-6 text-amber-600">
@@ -100,7 +116,7 @@
                 </a>
             </div>
 
-            <!-- 4. BOM Tool Card 1 -->
+            <!-- 5. BOM Tool Card 1 -->
             <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
                 <div>
                     <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-6 text-indigo-600">
@@ -119,7 +135,7 @@
                 </a>
             </div>
 
-            <!-- 5. BOM Tool Card 2 -->
+            <!-- 6. BOM Tool Card 2 -->
             <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
                 <div>
                     <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-6 text-purple-600">
@@ -138,7 +154,7 @@
                 </a>
             </div>
 
-            <!-- 6. PDF Checker Tool Card -->
+            <!-- 7. PDF Checker Tool Card -->
             <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
                 <div>
                     <div class="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center mb-6 text-teal-600">
@@ -157,7 +173,7 @@
                 </a>
             </div>
 
-            <!-- 7. Time Checker Tool Card -->
+            <!-- 8. Time Checker Tool Card -->
             <div class="tool-card bg-white p-8 rounded-2xl border border-gray-100 flex flex-col justify-between">
                 <div>
                     <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-6 text-green-600">
