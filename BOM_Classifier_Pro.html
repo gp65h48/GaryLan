@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOM 詢價分類轉填工具 v4.2</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-active { background-color: #2563eb !important; color: white !important; font-weight: bold; }
+        .bg-blue-soft { background-color: #f0f7ff; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- 標題 -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border-l-8 border-blue-600 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Excel 詢價資訊轉填分類系統</h1>
+                <p class="text-sm text-gray-500 mt-1">v4.2 | 支援 STUD 關鍵字分類、動態年套數解析、一鍵去項次複製</p>
+            </div>
+            <div class="text-right text-xs text-gray-400">
+                v4.2.0 | 2026-02-05
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- 左側：快速貼上與工程師管理 -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- 快速貼上 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="font-bold text-blue-700 mb-3 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                        快速貼上資訊
+                    </h2>
+                    <textarea id="bulkInput" rows="5" class="w-full text-xs p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="貼上字串：02-429411-00--2026-02-23--S604233...PT...Irene Kuan..."></textarea>
+                    <button onclick="parseBulkString()" class="mt-2 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">深度解析並填入</button>
+                    <p class="text-[10px] text-gray-400 mt-2 italic text-center">自動辨識年套數、7 位申請單號及業務姓名</p>
+                </div>
+
+                <!-- 工程師管理 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="font-bold text-green-700 mb-3 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        專案工程師管理
+                    </h2>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="newEngineer" class="flex-1 text-sm border border-gray-300 rounded p-2" placeholder="輸入姓名">
+                        <button onclick="addEngineer()" class="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 text-sm">+</button>
+                    </div>
+                    <div id="engineerList" class="max-h-32 overflow-y-auto space-y-1 border-t pt-2"></div>
+                </div>
+            </div>
+
+            <!-- 右側：詳細資訊與檔案上傳 -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div class="col-span-2">
+                            <label class="block text-xs font-bold text-gray-600 uppercase">型號名稱/客戶料號</label>
+                            <input type="text" id="modelName" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border focus:bg-white transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">專案工程師</label>
+                            <select id="engineerSelect" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border focus:bg-white"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase"><b>需求日期(請自行調整)</b></label>
+                            <input type="date" id="reqDate" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">申請單號</label>
+                            <input type="text" id="appNo" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">年套數</label>
+                            <input type="number" id="annualSets" value="1" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">RFQ NO.</label>
+                            <input type="text" id="rfqNo" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">負責業務</label>
+                            <input type="text" id="sales" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 uppercase">最終客戶</label>
+                            <input type="text" id="endCustomer" class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md p-2 border">
+                        </div>
+                    </div>
+
+                    <hr class="my-6 border-gray-100">
+
+                    <!-- 檔案上傳區 -->
+                    <div class="border-2 border-dashed border-blue-200 rounded-xl p-8 bg-blue-50 text-center transition hover:border-blue-400">
+                        <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
+                        <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 text-white px-10 py-3 rounded-full hover:bg-blue-700 shadow-md transition font-bold">選擇 BOM 檔案</button>
+                        <p id="fileNameDisplay" class="mt-3 text-sm text-blue-700 font-medium"></p>
+                        
+                        <div id="sheetSelectionArea" class="mt-4 hidden flex flex-col items-center gap-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-semibold">目標分頁:</span>
+                                <select id="sheetSelect" class="bg-white border border-gray-300 rounded-md p-1.5 text-sm focus:ring-2 focus:ring-blue-500"></select>
+                            </div>
+                            <button onclick="processSelectedSheet()" class="bg-green-600 text-white px-8 py-2 rounded-lg font-bold hover:bg-green-700 transition">執行解析與分類</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 解析結果顯示區 -->
+        <div id="resultsArea" class="hidden bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div class="bg-gray-800 p-3 flex flex-wrap justify-between items-center gap-3">
+                <div class="flex space-x-1">
+                    <button onclick="switchTab('parts')" id="tab-parts" class="px-5 py-2 rounded text-white transition text-sm font-medium hover:bg-gray-700">零件 (<span id="count-parts">0</span>)</button>
+                    <button onclick="switchTab('mechanical')" id="tab-mechanical" class="px-5 py-2 rounded text-white transition text-sm font-medium hover:bg-gray-700">機構 (<span id="count-mechanical">0</span>)</button>
+                    <button onclick="switchTab('packaging')" id="tab-packaging" class="px-5 py-2 rounded text-white transition text-sm font-medium hover:bg-gray-700">包裝 (<span id="count-packaging">0</span>)</button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="copyToClipboard()" class="bg-white text-gray-800 px-5 py-2 rounded font-bold hover:bg-gray-100 shadow-sm text-sm border border-gray-300 flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-1 4h.01M9 16h.01"></path></svg>
+                        複製欄位資訊 (不含項次)
+                    </button>
+                    <button onclick="exportToExcel()" class="bg-yellow-500 text-gray-900 px-5 py-2 rounded font-bold hover:bg-yellow-400 shadow-sm text-sm flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        下載 Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[500px]">
+                <table class="min-w-full divide-y divide-gray-200" id="previewTable">
+                    <thead class="bg-gray-50 sticky top-0 z-10">
+                        <tr id="tableHeader"></tr>
+                    </thead>
+                    <tbody id="tableBody" class="bg-white divide-y divide-gray-200 text-[11px]"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let workbook = null;
+        let processedData = { parts: [], mechanical: [], packaging: [] };
+        let currentTab = 'parts';
+        let engineers = ["未指定"];
+
+        const COLUMNS_PARTS = [
+            "項次", "申請日期", "專案工程師", "負責業務", "需求項目", "RFQ NO.", 
+            "樣單單號", "樣單需求日", "申請指定料號", "CE！(Y/N)", 
+            "零件料號分類", "零件料號", "品名(CABLE,COLOR)", "廠牌", "廠牌料號", 
+            "客戶內部零件料號", "用量", "UM", "年套數", "年用量", "Parts Type", 
+            "價格需求", "無鹵Y有鹵N", "Remark(Data Sheet)", "電測測試設備", 
+            "電測測試條件", "型號名稱or客戶料號", "最終客戶"
+        ];
+
+        const COLUMNS_MECH = [
+            "項次", "申請日期", "專案工程師", "負責業務", "需求項目", "RFQ NO.", 
+            "樣單單號", "樣單需求日", "申請指定料號", "CE！(Y/N)", 
+            "零件料號分類", "零件料號", "品名(CABLE,COLOR)", "廠牌", "廠牌料號", 
+            "客戶內部零件料號", "用量", "UM", "年套數", "年用量", "Parts Type", 
+            "價格需求", "無鹵Y有鹵N", "Remark(Data Sheet)", 
+            "型號名稱or客戶料號", "最終客戶"
+        ];
+
+        window.onload = () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('reqDate').value = today;
+            loadEngineers();
+        };
+
+        function loadEngineers() {
+            const saved = localStorage.getItem('bom_engineers');
+            if (saved) engineers = JSON.parse(saved);
+            renderEngineerList();
+        }
+        function saveEngineers() { localStorage.setItem('bom_engineers', JSON.stringify(engineers)); }
+        function renderEngineerList() {
+            const list = document.getElementById('engineerList');
+            const select = document.getElementById('engineerSelect');
+            list.innerHTML = ''; select.innerHTML = '';
+            engineers.forEach((name, index) => {
+                const opt = document.createElement('option'); opt.value = name; opt.textContent = name; select.appendChild(opt);
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center text-xs bg-gray-50 p-1 px-2 rounded border border-gray-100";
+                div.innerHTML = `<span>${name}</span><button onclick="removeEngineer(${index})" class="text-red-400 hover:text-red-600">✕</button>`;
+                list.appendChild(div);
+            });
+        }
+        function addEngineer() {
+            const name = document.getElementById('newEngineer').value.trim();
+            if (name && !engineers.includes(name)) {
+                engineers.push(name); document.getElementById('newEngineer').value = '';
+                saveEngineers(); renderEngineerList();
+            }
+        }
+        function removeEngineer(index) { engineers.splice(index, 1); saveEngineers(); renderEngineerList(); }
+
+        // --- 快速解析邏輯 v4.2 (修復年套數解析與申請單號) ---
+        function parseBulkString() {
+            const input = document.getElementById('bulkInput').value.trim();
+            if (!input) return;
+            
+            const parts = input.split('--');
+            
+            if (parts[0]) document.getElementById('modelName').value = parts[0].trim();
+            if (parts[1]) {
+                const dateMatch = parts[1].match(/\d{4}-\d{2}-\d{2}/);
+                if (dateMatch) document.getElementById('reqDate').value = dateMatch[0];
+            }
+            if (parts[2]) {
+                const rem = parts[2].trim();
+                const rfqMatch = rem.match(/PT\d+/);
+                const rfqValue = rfqMatch ? rfqMatch[0] : "";
+                if (rfqValue) document.getElementById('rfqNo').value = rfqValue;
+
+                const sMatch = rem.match(/S\d{6}/);
+                if (sMatch) {
+                    document.getElementById('appNo').value = sMatch[0];
+                }
+
+                if (rfqMatch) {
+                    const beforeRfq = rem.split(rfqValue)[0];
+                    const allNumbersBeforePT = beforeRfq.match(/\d+/g);
+                    if (allNumbersBeforePT) {
+                        const lastNum = allNumbersBeforePT[allNumbersBeforePT.length - 1];
+                        document.getElementById('annualSets').value = parseInt(lastNum);
+                    }
+                }
+
+                if (rfqValue) {
+                    const afterRfq = rem.split(rfqValue)[1];
+                    if (afterRfq) {
+                        const words = afterRfq.trim().split(/\s+/).filter(s => s.trim());
+                        if (words.length >= 2) {
+                            document.getElementById('sales').value = words[0] + " " + words[1];
+                            document.getElementById('endCustomer').value = words.slice(2).join(' ') || "";
+                        } else {
+                            document.getElementById('sales').value = afterRfq.trim();
+                        }
+                    }
+                }
+            }
+            alert("深度解析完成！");
+        }
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0]; if (!file) return;
+            document.getElementById('fileNameDisplay').textContent = "📄 " + file.name;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                workbook = XLSX.read(data, {type: 'array'});
+                const sheetSelect = document.getElementById('sheetSelect');
+                sheetSelect.innerHTML = '';
+                workbook.SheetNames.forEach(name => {
+                    const opt = document.createElement('option'); opt.value = name; opt.textContent = name;
+                    if (name.includes('4.RPABOM')) opt.selected = true;
+                    sheetSelect.appendChild(opt);
+                });
+                document.getElementById('sheetSelectionArea').classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function processSelectedSheet() {
+            const sheetName = document.getElementById('sheetSelect').value;
+            const worksheet = workbook.Sheets[sheetName];
+            const rawData = XLSX.utils.sheet_to_json(worksheet);
+            classifyAndTransform(rawData);
+            switchTab('parts');
+            document.getElementById('resultsArea').classList.remove('hidden');
+        }
+
+        function classifyAndTransform(data) {
+            processedData = { parts: [], mechanical: [], packaging: [] };
+            const meta = {
+                modelName: document.getElementById('modelName').value,
+                reqDate: document.getElementById('reqDate').value,
+                appNo: document.getElementById('appNo').value,
+                annualSets: parseFloat(document.getElementById('annualSets').value) || 1,
+                rfqNo: document.getElementById('rfqNo').value,
+                sales: document.getElementById('sales').value,
+                endCustomer: document.getElementById('endCustomer').value,
+                engineer: document.getElementById('engineerSelect').value,
+                today: new Date().toLocaleDateString('zh-TW', {year: 'numeric', month: '2-digit', day: '2-digit'}).replace(/\//g, '-')
+            };
+
+            data.forEach(row => {
+                const sbpn = String(row['信邦料號'] || '').trim();
+                if (!sbpn) return;
+                
+                const component = String(row['COMPONENT'] || '').trim();
+                const rawDesc = String(row['品名'] || row['DESCRIPTION'] || '').trim();
+                let brand = String(row['原廠廠牌'] || '').trim();
+                let brandPn = String(row['原廠廠牌料號'] || '').trim();
+                const snp = String(row['SNP'] || '').trim();
+                const qty = parseFloat(row['QTY']) || 0;
+
+                if (snp) {
+                    brand = "此為" + snp + "件";
+                    brandPn = "此為" + snp + "件";
+                } else {
+                    if (!brand || brand.toUpperCase() === 'NA') brand = 'N/A';
+                    if (!brandPn || brandPn.toUpperCase() === 'NA') brandPn = 'N/A';
+                }
+
+                const hasValidBrand = brand !== 'N/A' && !brand.includes('此為');
+                let partsPn = sbpn.endsWith('*') ? "MISC" : sbpn;
+                const reqItem = partsPn === "MISC" ? "詢價 & 申請零件料號" : "詢價";
+
+                let category = 'parts';
+                if (sbpn.startsWith('A0')) {
+                    category = 'packaging';
+                } else if (sbpn.startsWith('A1') || sbpn.startsWith('A2') || sbpn.startsWith('A3') || sbpn.startsWith('A6')) {
+                    category = 'parts';
+                } else if (sbpn.startsWith('A4') || sbpn.startsWith('A5')) {
+                    if (hasValidBrand) {
+                        const upperDesc = rawDesc.toUpperCase();
+                        // 修改關鍵字規則：包含 SCR, WASHER, SCRW, WSHR, STUD 的項目分類至機構
+                        const isMechKeyword = ['SCR', 'WASHER', 'SCRW', 'WSHR', 'STUD'].some(k => upperDesc.startsWith(k));
+                        category = isMechKeyword ? 'mechanical' : 'parts';
+                    } else {
+                        category = 'mechanical';
+                    }
+                }
+
+                const item = {
+                    "項次": 0,
+                    "申請日期": meta.today,
+                    "專案工程師": meta.engineer,
+                    "負責業務": meta.sales,
+                    "需求項目": reqItem,
+                    "RFQ NO.": meta.rfqNo,
+                    "樣單單號": meta.appNo, 
+                    "樣單需求日": meta.reqDate,
+                    "申請指定料號": "Y",
+                    "CE！(Y/N)": row['CE'] || "",
+                    "零件料號分類": sbpn,
+                    "零件料號": partsPn,
+                    "品名(CABLE,COLOR)": rawDesc,
+                    "廠牌": brand,
+                    "廠牌料號": brandPn,
+                    "客戶內部零件料號": component,
+                    "用量": qty,
+                    "UM": row['UM'] || "",
+                    "年套數": meta.annualSets,
+                    "年用量": qty * meta.annualSets,
+                    "Parts Type": "",
+                    "價格需求": "期貨階梯式報價",
+                    "無鹵Y有鹵N": "有鹵N",
+                    "Remark(Data Sheet)": "",
+                    "電測測試設備": "", 
+                    "電測測試條件": "", 
+                    "型號名稱or客戶料號": meta.modelName,
+                    "最終客戶": meta.endCustomer
+                };
+
+                processedData[category].push(item);
+            });
+
+            Object.keys(processedData).forEach(cat => {
+                processedData[cat].sort((a, b) => a["零件料號分類"].localeCompare(b["零件料號分類"], undefined, {numeric: true}));
+                processedData[cat].forEach((item, idx) => item["項次"] = idx + 1);
+            });
+
+            document.getElementById('count-parts').textContent = processedData.parts.length;
+            document.getElementById('count-mechanical').textContent = processedData.mechanical.length;
+            document.getElementById('count-packaging').textContent = processedData.packaging.length;
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            ['parts', 'mechanical', 'packaging'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.toggle('tab-active', t === tab);
+            });
+            renderTable();
+        }
+
+        function getColsForCurrentTab() {
+            return currentTab === 'mechanical' ? COLUMNS_MECH : COLUMNS_PARTS;
+        }
+
+        function renderTable() {
+            const data = processedData[currentTab];
+            const headerRow = document.getElementById('tableHeader');
+            const body = document.getElementById('tableBody');
+            headerRow.innerHTML = ''; body.innerHTML = '';
+            if (data.length === 0) return;
+
+            const cols = getColsForCurrentTab();
+            cols.forEach(col => {
+                const th = document.createElement('th');
+                th.className = "px-3 py-3 text-left font-bold border-b border-gray-200 whitespace-nowrap text-gray-600 bg-gray-50";
+                th.textContent = col;
+                headerRow.appendChild(th);
+            });
+
+            data.forEach(item => {
+                const tr = document.createElement('tr'); tr.className = "hover:bg-blue-50 transition border-b border-gray-100";
+                cols.forEach(col => {
+                    const td = document.createElement('td');
+                    td.className = "px-3 py-2 whitespace-nowrap border-r border-gray-50 last:border-0";
+                    td.textContent = item[col] || "";
+                    tr.appendChild(td);
+                });
+                body.appendChild(tr);
+            });
+        }
+
+        function copyToClipboard() {
+            const data = processedData[currentTab];
+            if (data.length === 0) return;
+
+            const cols = getColsForCurrentTab();
+            const colsToCopy = cols.filter(c => c !== "項次");
+
+            let tsv = colsToCopy.join('\t') + '\n';
+            data.forEach(row => {
+                tsv += colsToCopy.map(col => row[col] || "").join('\t') + '\n';
+            });
+
+            const textarea = document.createElement('textarea');
+            textarea.value = tsv;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert(`已複製 ${data.length} 筆資料到剪貼簿 (不含項次)！`);
+            } catch (err) {
+                alert('複製失敗。');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+            const sheetNames = { parts: "零件", mechanical: "機構", packaging: "包裝" };
+            Object.keys(processedData).forEach(key => {
+                if (processedData[key].length > 0) {
+                    const cols = key === 'mechanical' ? COLUMNS_MECH : COLUMNS_PARTS;
+                    const ws = XLSX.utils.json_to_sheet(processedData[key], { header: cols });
+                    XLSX.utils.book_append_sheet(wb, ws, sheetNames[key]);
+                }
+            });
+            XLSX.writeFile(wb, `詢價輸出單_${document.getElementById('appNo').value || 'BOM'}.xlsx`);
+        }
+    </script>
+</body>
+</html>
