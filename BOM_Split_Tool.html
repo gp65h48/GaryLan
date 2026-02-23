@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BOM 自動拆分工具 V2.7</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.2s ease;
+        }
+        .drop-zone:hover, .drop-zone.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .preview-table th {
+            background-color: #f1f5f9;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .newline-cell {
+            white-space: pre-line;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8 text-slate-800 font-sans">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <header class="bg-slate-800 p-6 text-white flex justify-between items-center">
+                <h1 class="text-2xl font-bold flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    BOM 自動拆分工具
+                </h1>
+                <span class="text-xs bg-slate-700 px-3 py-1 rounded-full text-slate-300">v2.7 MaterPN Format</span>
+            </header>
+
+            <div class="p-6 md:p-10 space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Master BOM -->
+                    <div class="space-y-4">
+                        <h2 class="text-lg font-bold border-l-4 border-blue-500 pl-3">1. 主要 BOM 檔案</h2>
+                        <label for="masterFile" id="masterDrop" class="drop-zone rounded-xl p-8 text-center cursor-pointer block select-none">
+                            <input type="file" id="masterFile" class="hidden" accept=".xlsx, .xls, .csv">
+                            <div id="masterInfo" class="space-y-3 pointer-events-none">
+                                <p class="text-slate-600 font-medium">點擊選擇或拖放主要 BOM</p>
+                                <div class="inline-block text-xs bg-blue-600 text-white px-4 py-1.5 rounded-md shadow-sm">瀏覽檔案</div>
+                            </div>
+                        </label>
+                        <div id="masterSheetSection" class="hidden">
+                            <label class="text-sm font-semibold text-slate-700 block mb-1 italic">選擇分頁：</label>
+                            <select id="masterSheetSelect" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"></select>
+                        </div>
+                    </div>
+
+                    <!-- Reference Table -->
+                    <div class="space-y-4">
+                        <h2 class="text-lg font-bold border-l-4 border-emerald-500 pl-3">2. 電路連接彙整表</h2>
+                        <label for="refFile" id="refDrop" class="drop-zone rounded-xl p-8 text-center cursor-pointer block select-none">
+                            <input type="file" id="refFile" class="hidden" accept=".xlsx, .xls, .csv">
+                            <div id="refInfo" class="space-y-3 pointer-events-none">
+                                <p class="text-slate-600 font-medium">點擊選擇或拖放彙整表</p>
+                                <div class="inline-block text-xs bg-emerald-600 text-white px-4 py-1.5 rounded-md shadow-sm">瀏覽檔案</div>
+                            </div>
+                        </label>
+                        <div id="refSheetSection" class="hidden">
+                            <label class="text-sm font-semibold text-slate-700 block mb-1 italic">選擇分頁：</label>
+                            <select id="refSheetSelect" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm bg-slate-50 focus:ring-2 focus:ring-emerald-500 outline-none"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center justify-center pt-8 border-t border-slate-100 space-y-6">
+                    <button id="processBtn" disabled class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-bold py-3.5 px-16 rounded-xl shadow-lg transition-all transform hover:-translate-y-1 active:translate-y-0">
+                        執行拆分與預覽
+                    </button>
+                    
+                    <div id="downloadArea" class="hidden text-center bg-emerald-50 border border-emerald-100 p-6 rounded-2xl w-full max-w-sm">
+                        <p class="text-emerald-700 font-bold mb-3">處理完成！</p>
+                        <button id="downloadBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-12 rounded-lg shadow-md transition-all">
+                            下載 Excel 結果檔
+                        </button>
+                    </div>
+                </div>
+
+                <div id="log" class="bg-slate-900 text-slate-300 p-4 rounded-xl text-[10px] font-mono max-h-32 overflow-y-auto hidden"></div>
+            </div>
+        </div>
+
+        <div id="previewArea" class="hidden bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="bg-slate-100 p-4 border-b flex justify-between items-center">
+                <h2 class="font-bold text-slate-700">拆分內容預覽</h2>
+                <span class="text-xs text-slate-500 italic">MaterPN 命名格式：NA_電路名稱 \n A9*</span>
+            </div>
+            <div class="p-0 max-h-[600px] overflow-auto">
+                <table class="preview-table w-full text-left border-collapse text-[11px]">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="p-2 border-r bg-slate-50 w-24">Level</th>
+                            <th class="p-2 border-r">MaterPN</th>
+                            <th class="p-2 border-r">POS</th>
+                            <th class="p-2 border-r">QTY</th>
+                            <th class="p-2">組成用量</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let masterWorkbook = null;
+        let refWorkbook = null;
+        let finalWorkbook = null;
+
+        const el = {
+            masterFile: document.getElementById('masterFile'),
+            refFile: document.getElementById('refFile'),
+            masterSelect: document.getElementById('masterSheetSelect'),
+            refSelect: document.getElementById('refSheetSelect'),
+            masterSection: document.getElementById('masterSheetSection'),
+            refSection: document.getElementById('refSheetSection'),
+            masterInfo: document.getElementById('masterInfo'),
+            refInfo: document.getElementById('refInfo'),
+            processBtn: document.getElementById('processBtn'),
+            downloadBtn: document.getElementById('downloadBtn'),
+            downloadArea: document.getElementById('downloadArea'),
+            previewArea: document.getElementById('previewArea'),
+            previewBody: document.getElementById('previewBody'),
+            log: document.getElementById('log')
+        };
+
+        function addLog(msg, type = 'info') {
+            el.log.classList.remove('hidden');
+            const div = document.createElement('div');
+            const colors = { info: 'text-slate-300', warn: 'text-yellow-400', error: 'text-red-400' };
+            div.className = `mb-1 ${colors[type] || colors.info}`;
+            div.textContent = `> [${new Date().toLocaleTimeString()}] ${msg}`;
+            el.log.appendChild(div);
+            el.log.scrollTop = el.log.scrollHeight;
+        }
+
+        function normalizePos(pos) {
+            if (pos === null || pos === undefined) return null;
+            const s = String(pos).trim();
+            if (s === "" || s === "0" || s.toLowerCase() === "undefined") return null;
+            const normalized = s.replace(/^0+/, '');
+            return normalized === "" ? "0" : normalized;
+        }
+
+        async function readWorkbook(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try { resolve(XLSX.read(new Uint8Array(e.target.result), { type: 'array' })); } catch (err) { reject(err); }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function updateSheetSelect(wb, selectEl) {
+            selectEl.innerHTML = "";
+            wb.SheetNames.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name; opt.textContent = name;
+                selectEl.appendChild(opt);
+            });
+        }
+
+        el.masterFile.onchange = async (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                masterWorkbook = await readWorkbook(file);
+                el.masterInfo.innerHTML = `<p class="text-slate-600 font-medium">已選擇：</p><div class="text-blue-600 font-bold">${file.name}</div>`;
+                updateSheetSelect(masterWorkbook, el.masterSelect);
+                el.masterSection.classList.remove('hidden');
+                checkReady();
+            }
+        };
+
+        el.refFile.onchange = async (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                refWorkbook = await readWorkbook(file);
+                el.refInfo.innerHTML = `<p class="text-slate-600 font-medium">已選擇：</p><div class="text-emerald-600 font-bold">${file.name}</div>`;
+                updateSheetSelect(refWorkbook, el.refSelect);
+                el.refSection.classList.remove('hidden');
+                checkReady();
+            }
+        };
+
+        function checkReady() { if (masterWorkbook && refWorkbook) el.processBtn.disabled = false; }
+
+        el.processBtn.onclick = async () => {
+            try {
+                el.processBtn.disabled = true;
+                el.downloadArea.classList.add('hidden');
+                el.previewArea.classList.add('hidden');
+                el.previewBody.innerHTML = "";
+                addLog("處理資料中...");
+
+                const masterData = XLSX.utils.sheet_to_json(masterWorkbook.Sheets[el.masterSelect.value], { defval: "" });
+                const refData = XLSX.utils.sheet_to_json(refWorkbook.Sheets[el.refSelect.value], { defval: "" });
+
+                let baseLevelPrefix = "1.107.1";
+                if (masterData.length > 0 && masterData[0]['Level']) {
+                    const parts = String(masterData[0]['Level']).split('.');
+                    if (parts.length >= 3) baseLevelPrefix = parts.slice(0, 3).join('.');
+                }
+
+                const masterMap = {};
+                masterData.forEach(row => {
+                    const normPos = normalizePos(row['POS']);
+                    if (normPos) masterMap[normPos] = row;
+                });
+
+                const circuitGroups = {};
+                refData.forEach(row => {
+                    const cId = row['CIRCUIT'];
+                    if (!cId) return;
+                    if (!circuitGroups[cId]) circuitGroups[cId] = [];
+                    circuitGroups[cId].push(row);
+                });
+
+                const wb = XLSX.utils.book_new();
+                const globalUsedQty = {};
+                const splitBOMData = [];
+
+                const sortedCircuits = Object.keys(circuitGroups).sort((a, b) => isNaN(a) || isNaN(b) ? a.toString().localeCompare(b) : Number(a) - Number(b));
+
+                sortedCircuits.forEach((cId, circuitIdx) => {
+                    const rows = circuitGroups[cId];
+                    const summary = {};
+                    rows.forEach(r => {
+                        for (let i = 1; i <= 7; i++) {
+                            const normPos = normalizePos(r[`POS${i}`]);
+                            const qtyValue = r[`QTY${i}`];
+                            if (normPos && qtyValue !== undefined && qtyValue !== "") {
+                                const qty = parseFloat(qtyValue) || 0;
+                                summary[normPos] = (summary[normPos] || 0) + qty;
+                                globalUsedQty[normPos] = (globalUsedQty[normPos] || 0) + qty;
+                            }
+                        }
+                    });
+
+                    Object.keys(summary).forEach((pos, rowIdx) => {
+                        const base = masterMap[pos];
+                        if (base) {
+                            const newRow = { ...base };
+                            newRow['Level'] = `${baseLevelPrefix}.${circuitIdx + 1}.${rowIdx + 1}`;
+                            
+                            // 更新 MaterPN 命名規則: NA_CIRCUIT名稱 (換行) A9*
+                            newRow['MaterPN'] = `NA_${cId}\nA9*`;
+                            
+                            newRow['QTY'] = summary[pos];
+                            newRow['組成用量'] = summary[pos];
+                            splitBOMData.push(newRow);
+
+                            const tr = document.createElement('tr');
+                            tr.className = "border-b hover:bg-slate-50";
+                            tr.innerHTML = `
+                                <td class="p-2 border-r font-mono text-blue-600">${newRow['Level']}</td>
+                                <td class="p-2 border-r newline-cell">${newRow['MaterPN']}</td>
+                                <td class="p-2 border-r">${pos}</td>
+                                <td class="p-2 border-r text-emerald-600 font-bold">${newRow['QTY']}</td>
+                                <td class="p-2 text-emerald-600 font-bold">${newRow['組成用量']}</td>
+                            `;
+                            el.previewBody.appendChild(tr);
+                        }
+                    });
+                });
+
+                if (splitBOMData.length > 0) {
+                    const ws = XLSX.utils.json_to_sheet(splitBOMData);
+                    const range = XLSX.utils.decode_range(ws['!ref']);
+                    const materPnColIndex = Object.keys(splitBOMData[0]).indexOf('MaterPN');
+                    for(let R = range.s.r + 1; R <= range.e.r; ++R) {
+                        const cell = ws[XLSX.utils.encode_cell({c:materPnColIndex, r:R})];
+                        if(cell) {
+                            // 確保換行生效
+                            cell.s = { alignment: { wrapText: true, vertical: 'center' } };
+                        }
+                    }
+                    applyMerges(ws, splitBOMData, 'MaterPN');
+                    XLSX.utils.book_append_sheet(wb, ws, "拆分BOM");
+                }
+
+                const remainRows = masterData.map(row => {
+                    const normPos = normalizePos(row['POS']);
+                    const used = globalUsedQty[normPos] || 0;
+                    const newRow = { ...row };
+                    newRow['QTY'] = (parseFloat(row['QTY']) || 0) - used;
+                    return newRow;
+                });
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(remainRows), "使用剩餘BOM");
+
+                finalWorkbook = wb;
+                el.downloadArea.classList.remove('hidden');
+                el.previewArea.classList.remove('hidden');
+                addLog(`完成！成功拆分 ${sortedCircuits.length} 個電路。`);
+            } catch (err) { addLog("錯誤: " + err.message, "error"); }
+            finally { el.processBtn.disabled = false; }
+        };
+
+        el.downloadBtn.onclick = () => {
+            if (finalWorkbook) XLSX.writeFile(finalWorkbook, `BOM彙整結果_${Date.now()}.xlsx`);
+        };
+
+        function applyMerges(ws, rows, colName) {
+            const merges = [];
+            const headers = Object.keys(rows[0]);
+            const colIndex = headers.indexOf(colName);
+            if (colIndex === -1) return;
+            let start = 0;
+            for (let i = 1; i < rows.length; i++) {
+                if (rows[i][colName] !== rows[start][colName]) {
+                    if (i - 1 > start) merges.push({ s: { r: start + 1, c: colIndex }, e: { r: i, c: colIndex } });
+                    start = i;
+                }
+            }
+            if (rows.length - 1 > start) merges.push({ s: { r: start + 1, c: colIndex }, e: { r: rows.length, c: colIndex } });
+            ws['!merges'] = merges;
+        }
+
+        ['masterDrop', 'refDrop'].forEach(id => {
+            const drop = document.getElementById(id);
+            const inputId = id === 'masterDrop' ? 'masterFile' : 'refFile';
+            drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('active'); };
+            drop.ondragleave = () => drop.classList.remove('active');
+            drop.ondrop = (e) => {
+                e.preventDefault(); drop.classList.remove('active');
+                if (e.dataTransfer.files.length) {
+                    const input = document.getElementById(inputId);
+                    input.files = e.dataTransfer.files;
+                    input.onchange({ target: input });
+                }
+            };
+        });
+    </script>
+</body>
+</html>
