@@ -15,10 +15,6 @@
     .pane-padding { padding: 2rem; }
     .sheet-btn { display: flex; align-items: center; justify-content: center; background-color: #107c10; color: white; padding: 0.8rem; border-radius: 0.75rem; font-weight: 800; transition: all 0.3s; text-decoration: none; border: 2px solid #0e630e; margin-top: 0.5rem; }
     .footer-brand { text-align: center; color: #94a3b8; font-size: 0.75rem; margin-top: 1rem; font-weight: bold; letter-spacing: 0.1rem; }
-    
-    /* 模擬用的 Modal 樣式 */
-    #mockModal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 50; }
-    .modal-content { background: white; padding: 2rem; border-radius: 1rem; max-width: 500px; width: 90%; }
   </style>
 </head>
 <body>
@@ -50,7 +46,7 @@
         </div>
         <div class="pt-4 border-t border-slate-200">
           <label class="label-title text-green-700 font-bold mb-1">任務管理</label>
-          <div class="sheet-btn cursor-pointer" onclick="alert('這將開啟 Google 試算表連結')">開啟紀錄試算表</div>
+          <a href="https://docs.google.com/spreadsheets/d/1Hf5aFrl2dXMzy4mlk00d4ht8lRchJ6lV1g7Ic3DSXoE/edit?gid=0#gid=0" target="_blank" class="sheet-btn">開啟紀錄試算表</a>
         </div>
       </div>
       <div class="footer-brand">TINACHEN ®</div>
@@ -59,7 +55,7 @@
     <!-- 右側主內容 -->
     <div class="w-full lg:w-[75%] pane-padding flex flex-col justify-between overflow-y-auto">
       <div>
-        <h2 class="text-3xl font-black text-gray-800 mb-6">SINBON 任務助手 <span class="text-sm font-normal text-blue-500">(模擬運行中)</span></h2>
+        <h2 class="text-3xl font-black text-gray-800 mb-6">SINBON 任務助手</h2>
         <form id="appForm" class="space-y-6" autocomplete="off">
           <div>
             <label class="label-title font-bold text-gray-700">寄件任務 <span class="text-red-500">*</span></label>
@@ -73,7 +69,7 @@
             </select>
           </div>
 
-          <div id="subject-preview-container" class="hidden animate-pulse">
+          <div id="subject-preview-container" class="hidden">
             <label class="label-title font-bold text-gray-700">自動生成主旨預覽</label>
             <div id="subjectPreview" class="subject-preview-box">尚未輸入完整資訊...</div>
           </div>
@@ -124,23 +120,8 @@
     </div>
   </div>
 
-  <!-- 模擬成功 Modal -->
-  <div id="mockModal">
-    <div class="modal-content shadow-2xl border-2 border-blue-500">
-      <h3 class="text-xl font-bold text-blue-700 mb-4">✨ 模擬同步完成</h3>
-      <div class="space-y-2 text-sm text-gray-600">
-        <p><strong>[後端動作]</strong> 已模擬調用 <code>google.script.run</code> 寫入試算表。</p>
-        <p><strong>[前端動作]</strong> 即將開啟 Outlook (mailto)。</p>
-        <hr class="my-3">
-        <p class="font-bold text-gray-800">產生的郵件預覽：</p>
-        <div id="mailSummary" class="bg-gray-50 p-3 rounded border text-xs overflow-auto max-h-40 whitespace-pre-wrap"></div>
-      </div>
-      <button onclick="closeModal()" class="mt-6 w-full bg-blue-600 text-white py-2 rounded-lg font-bold">關閉並返回</button>
-    </div>
-  </div>
-
   <script>
-    const appLink = "https://script.google.com/macros/s/.../exec";
+    const appLink = "https://script.google.com/macros/s/AKfycbzqgM4OZiIS4efYg_xSchnq0WNDZvLikJZ9gj2OrAX8AXlICsos0BKhhq-uJvYWutJ5YQ/exec";
     const commonCc = "AndyLai@sinbon.com;KevinLo@sinbon.com;JasonShih@sinbon.com;AllenHuang@sinbon.com;JuneYang@sinbon.com;MaxYen@sinbon.com;GaryLan@sinbon.com;HumbertHsu@sinbon.com;TomHsiao@sinbon.com;LucaChen@sinbon.com;TinaChen01@sinbon.com";
 
     const config = {
@@ -213,11 +194,11 @@
     function updateSubjectPreview() {
       const p = document.getElementById('purpose').value;
       if (!p || !config[p]) return;
-      const f1 = document.getElementById('field1').value || "[客戶]";
-      const f2 = document.getElementById('field2').value || "[料號]";
-      const date = document.getElementById('costReqDate').value || "[日期]";
+      const f1 = document.getElementById('field1').value;
+      const f2 = document.getElementById('field2').value;
+      const date = document.getElementById('costReqDate').value;
       const tag = config[p].tag;
-      const type = document.getElementById('productType').value || "[類型]";
+      const type = document.getElementById('productType').value;
       
       let mainText = "";
       if (p === "請報價" || p === "建系統") { mainText = `${f1}, ${f2}, ${date}`; } 
@@ -227,8 +208,6 @@
     }
 
     function formatDate(s) { if (!s) return ""; const d = new Date(s); return isNaN(d.getTime()) ? s : `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
-
-    function closeModal() { document.getElementById('mockModal').style.display = 'none'; }
 
     document.getElementById('appForm').addEventListener('submit', function(e) {
       e.preventDefault();
@@ -244,7 +223,15 @@
         note: document.getElementById('note').value.trim(),
         productType: document.getElementById('productType').value
       };
+
+      // 1. 同步到試算表 (僅在 Google Apps Script 環境有效)
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run.processForm(formData);
+      }
       
+      // 2. 準備郵件資訊
+      const to = document.getElementById('mainReceiver').value.trim();
+      const cc = document.getElementById('receiver').value.trim();
       const subject = document.getElementById('subjectPreview').innerText;
       const noteLine = formData.note ? `\r\n備註：${formData.note}\r\n` : "";
       const assistantLine = `\r\n任務助手頁面：\r\n${appLink}\r\n`;
@@ -260,12 +247,13 @@
         body = `Hi All\r\n\r\n客戶代碼：${formData.field1}\r\n信邦料號：${formData.field2}\r\n產品類型：${formData.productType}\r\n\r\n資料路徑：\r\n<${formData.field3}>\r\n\r\nHi Lucy\r\n請協助建立${p}，\r\n預計完成日：${formData.costReqDate}\r\n\r\nHi Erin\r\n請協助圖BOM產出\r\n預計完成日：${formData.bomReqDate}\r\n${noteLine}${assistantLine}\r\n感謝`;
       }
 
-      // 模擬顯示資訊
-      document.getElementById('mailSummary').innerText = `To: ${document.getElementById('mainReceiver').value}\nSubject: ${subject}\n\n${body}`;
-      document.getElementById('mockModal').style.display = 'flex';
+      // 3. 啟動 Outlook (mailto)
+      let mailtoParams = [];
+      if (cc) mailtoParams.push("cc=" + encodeURIComponent(cc));
+      mailtoParams.push("subject=" + encodeURIComponent(subject));
+      mailtoParams.push("body=" + encodeURIComponent(body));
       
-      // 這裡原本會執行 window.location.href = "mailto:..."
-      console.log("Mailto Link Generated!");
+      window.location.href = "mailto:" + to + "?" + mailtoParams.join("&");
     });
   </script>
 </body>
