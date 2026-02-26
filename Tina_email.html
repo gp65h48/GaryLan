@@ -11,7 +11,10 @@
     .input-field { width: 100%; margin-top: 0.2rem; border: 2px solid #f1f5f9; border-radius: 0.75rem; padding: 0.6rem 1rem; font-size: 0.9rem; outline: none; transition: all 0.2s; background-color: #f8fafc; }
     .input-field:focus { border-color: #0078d4; background-color: white; box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.1); }
     .label-title { display: block; font-size: 0.85rem; font-weight: 800; color: #475569; margin-left: 0.25rem; }
-    .subject-preview-box { background-color: #f0f7ff; border: 2px solid #0078d4; color: #0078d4; border-radius: 0.75rem; padding: 0.75rem 1rem; font-weight: 900; font-size: 1.1rem; min-height: 3rem; display: flex; align-items: center; }
+    
+    .subject-input { background-color: #f0f7ff; border: 2px solid #0078d4; color: #0078d4; border-radius: 0.75rem; padding: 0.75rem 1rem; font-weight: 900; font-size: 1.1rem; width: 100%; outline: none; }
+    .subject-input:focus { background-color: white; box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15); }
+    
     .pane-padding { padding: 2rem; }
     .sheet-btn { display: flex; align-items: center; justify-content: center; background-color: #107c10; color: white; padding: 0.8rem; border-radius: 0.75rem; font-weight: 800; transition: all 0.3s; text-decoration: none; border: 2px solid #0e630e; margin-top: 0.5rem; }
     .footer-brand { text-align: center; color: #94a3b8; font-size: 0.75rem; margin-top: 1rem; font-weight: bold; letter-spacing: 0.1rem; }
@@ -37,12 +40,12 @@
           </select>
         </div>
         <div>
-          <label class="label-title text-blue-700 font-bold">收件者 (To)</label>
-          <textarea id="mainReceiver" class="input-field bg-white h-24 resize-none" readonly placeholder="選擇任務後自動帶入"></textarea>
+          <label class="label-title text-blue-700 font-bold">收件者 (To) <span class="text-xs font-normal text-slate-400 ml-1">(可手動調整)</span></label>
+          <textarea id="mainReceiver" class="input-field bg-white h-24 resize-none" placeholder="選擇任務後可調整收件人"></textarea>
         </div>
         <div>
-          <label class="label-title text-blue-700 font-bold">副本 (Cc)</label>
-          <textarea id="receiver" class="input-field bg-white h-40 resize-none" readonly placeholder="選擇任務後自動帶入"></textarea>
+          <label class="label-title text-blue-700 font-bold">副本 (Cc) <span class="text-xs font-normal text-slate-400 ml-1">(可手動調整)</span></label>
+          <textarea id="receiver" class="input-field bg-white h-40 resize-none" placeholder="選擇任務後可調整副本"></textarea>
         </div>
         <div class="pt-4 border-t border-slate-200">
           <label class="label-title text-green-700 font-bold mb-1">任務管理</label>
@@ -70,21 +73,22 @@
           </div>
 
           <div id="subject-preview-container" class="hidden">
-            <label class="label-title font-bold text-gray-700">自動生成主旨預覽</label>
-            <div id="subjectPreview" class="subject-preview-box">尚未輸入完整資訊...</div>
+            <label class="label-title font-bold text-gray-700">自動生成主旨 (可於此直接編輯微調)</label>
+            <input type="text" id="subjectPreview" class="subject-input" placeholder="尚未輸入完整資訊...">
           </div>
 
           <div id="single-area" class="space-y-4 pt-4 border-t border-slate-100">
             <div id="dynamic-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                <div id="field1-container" class="hidden">
                  <label class="label-title" id="label-field1"></label>
-                 <select id="field1" class="input-field" onchange="updateSubjectPreview()">
-                   <option value="">請選擇客戶代碼...</option>
-                   <option value="LMM - Cable1738-2">LMM - Cable1738-2</option>
-                   <option value="Lam ResearchB00072">Lam ResearchB00072</option>
-                   <option value="TALUS1580">TALUS1580</option>
-                   <option value="TEXON KR1251">TEXON KR1251</option>
-                 </select>
+                 <!-- 改為可輸入的 input 並綁定 datalist -->
+                 <input type="text" id="field1" list="customer-list" class="input-field font-bold text-slate-800" placeholder="選擇或輸入客戶代碼" oninput="updateSubjectPreview()">
+                 <datalist id="customer-list">
+                   <option value="LMM - Cable1738-2">
+                   <option value="Lam ResearchB00072">
+                   <option value="TALUS1580">
+                   <option value="TEXON KR1251">
+                 </datalist>
                </div>
                <div id="field2-container" class="hidden">
                  <label class="label-title" id="label-field2"></label>
@@ -121,7 +125,6 @@
   </div>
 
   <script>
-    // 已更新為指定的 GitHub Pages 網址
     const appLink = "https://gp65h48.github.io/GaryLan/Tina_email.html";
     const commonCc = "AndyLai@sinbon.com;KevinLo@sinbon.com;JasonShih@sinbon.com;AllenHuang@sinbon.com;JuneYang@sinbon.com;MaxYen@sinbon.com;GaryLan@sinbon.com;HumbertHsu@sinbon.com;TomHsiao@sinbon.com;LucaChen@sinbon.com;TinaChen01@sinbon.com";
 
@@ -147,7 +150,7 @@
         const el = document.getElementById(id);
         if (el) { el.value = ""; el.required = false; }
       });
-      document.getElementById('subjectPreview').innerText = "尚未輸入完整資訊...";
+      document.getElementById('subjectPreview').value = "";
       document.getElementById('subject-preview-container').classList.add('hidden');
       document.getElementById('note-area').classList.add('hidden');
       ['cost-date-container', 'bom-date-container', 'field1-container', 'field2-container', 'field3-container', 'product-type-container'].forEach(id => {
@@ -205,7 +208,7 @@
       if (p === "請報價" || p === "建系統") { mainText = `${f1}, ${f2}, ${date}`; } 
       else if (p.includes("成本") || p === "文件回收") { mainText = `${f2}, ${date}, ${type}`; }
       
-      document.getElementById('subjectPreview').innerText = tag + mainText;
+      document.getElementById('subjectPreview').value = tag + mainText;
     }
 
     function formatDate(s) { if (!s) return ""; const d = new Date(s); return isNaN(d.getTime()) ? s : `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
@@ -225,15 +228,13 @@
         productType: document.getElementById('productType').value
       };
 
-      // 1. 同步到試算表 (僅在 Google Apps Script 環境有效)
       if (typeof google !== 'undefined' && google.script && google.script.run) {
         google.script.run.processForm(formData);
       }
       
-      // 2. 準備郵件資訊
       const to = document.getElementById('mainReceiver').value.trim();
       const cc = document.getElementById('receiver').value.trim();
-      const subject = document.getElementById('subjectPreview').innerText;
+      const subject = document.getElementById('subjectPreview').value; 
       const noteLine = formData.note ? `\r\n備註：${formData.note}\r\n` : "";
       const assistantLine = `\r\n任務助手頁面：\r\n${appLink}\r\n`;
       
@@ -248,7 +249,6 @@
         body = `Hi All\r\n\r\n客戶代碼：${formData.field1}\r\n信邦料號：${formData.field2}\r\n產品類型：${formData.productType}\r\n\r\n資料路徑：\r\n<${formData.field3}>\r\n\r\nHi Lucy\r\n請協助建立${p}，\r\n預計完成日：${formData.costReqDate}\r\n\r\nHi Erin\r\n請協助圖BOM產出\r\n預計完成日：${formData.bomReqDate}\r\n${noteLine}${assistantLine}\r\n感謝`;
       }
 
-      // 3. 啟動 Outlook (mailto)
       let mailtoParams = [];
       if (cc) mailtoParams.push("cc=" + encodeURIComponent(cc));
       mailtoParams.push("subject=" + encodeURIComponent(subject));
