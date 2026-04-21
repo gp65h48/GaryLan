@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BOM 樹狀階層差異分析系統</title>
+    <!-- 載入必要函式庫：CSV 解析, Excel 處理, Tailwind CSS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,12 +15,11 @@
             font-family: 'Inter', 'PingFang TC', 'Microsoft JhengHei', sans-serif; 
         }
 
-        /* 差異背景色與側邊線條 */
         .diff-added { background-color: #f0fdf4; border-left: 4px solid #22c55e; }
         .diff-deleted { background-color: #fef2f2; border-left: 4px solid #ef4444; }
         .diff-modified { background-color: #fffbeb; border-left: 4px solid #f59e0b; }
         
-        /* 樹狀階層導引線 */
+        /* 樹狀階層導引線樣式 */
         .indent-line {
             border-left: 2px solid #e2e8f0;
             margin-left: 10px;
@@ -40,6 +40,9 @@
             background: #cbd5e1;
             border-radius: 4px;
         }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-900 pb-12">
@@ -53,29 +56,32 @@
                     </svg>
                     BOM 樹狀階層差異分析系統
                 </h1>
-                <p class="text-slate-500 text-sm mt-2">核心比對 Part, Qty, Mfr 等 10 大關鍵欄位。若料號相同但項次改變，將列為變更而非刪除。</p>
+                <p class="text-slate-500 text-sm mt-2 flex flex-wrap items-center gap-3">
+                    <span class="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold tracking-wider">STRUCTURE-FIRST ALGORITHM</span>
+                    <span class="flex items-center gap-1">核心比對 10 大關鍵欄位 (Part, Qty, Mfr, etc.)</span>
+                </p>
             </div>
             <div class="flex flex-wrap gap-3">
-                <button id="exportBtn" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg flex items-center gap-2">
+                <button id="exportBtn" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-emerald-100 flex items-center gap-2 active:scale-95">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    匯出報告 (.xlsx)
+                    匯出比對報告 (.xlsx)
                 </button>
             </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm transition-colors">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 transition-colors">
                 <label class="flex items-center gap-2 text-sm font-bold text-slate-700 mb-4">
-                    <span class="w-6 h-6 bg-indigo-50 rounded-full flex items-center justify-center text-xs text-indigo-600">1</span>
+                    <span class="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs text-slate-500">1</span>
                     基準 BOM (舊版 / Baseline)
                 </label>
                 <input type="file" id="file1" accept=".csv, .xlsx, .xls" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
             </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm transition-colors">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-emerald-300 transition-colors">
                 <label class="flex items-center gap-2 text-sm font-bold text-slate-700 mb-4">
-                    <span class="w-6 h-6 bg-emerald-50 rounded-full flex items-center justify-center text-xs text-emerald-600">2</span>
+                    <span class="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs text-slate-500">2</span>
                     目標 BOM (新版 / Target)
                 </label>
                 <input type="file" id="file2" accept=".csv, .xlsx, .xls" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
@@ -83,10 +89,11 @@
         </div>
 
         <div class="flex flex-col items-center mb-10">
-            <button id="compareBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 px-20 rounded-2xl shadow-xl transition-all hover:scale-105 active:scale-95">
+            <button id="compareBtn" class="group relative bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 px-20 rounded-2xl shadow-xl shadow-indigo-200 transition-all hover:scale-105 active:scale-95">
                 執行結構化深度比對
+                <div class="absolute -top-2 -right-2 bg-amber-400 text-indigo-950 text-[10px] px-2 py-0.5 rounded-full animate-bounce">START</div>
             </button>
-            <p id="msgBox" class="mt-4 text-sm font-bold hidden"></p>
+            <p id="msgBox" class="mt-4 text-sm font-bold text-red-500 hidden"></p>
         </div>
 
         <div id="dashboard" class="hidden grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -116,7 +123,7 @@
                             <th class="px-6 py-5 w-28 text-center">Status</th>
                             <th class="px-6 py-5">Hierarchy / Part Information</th>
                             <th class="px-6 py-5 w-24 text-center">Item</th>
-                            <th class="px-6 py-5">Parent</th>
+                            <th class="px-6 py-5">Parent Reference</th>
                             <th class="px-6 py-5">Change Details (Baseline ➔ Target)</th>
                         </tr>
                     </thead>
@@ -125,23 +132,43 @@
             </div>
         </div>
 
+        <!-- 載入中動畫 -->
         <div id="loader" class="hidden py-32 text-center">
-            <div class="h-12 w-12 border-4 border-indigo-600 border-t-transparent animate-spin rounded-full inline-block"></div>
-            <p class="mt-6 text-indigo-950 font-bold text-lg">正在解析結構並進行深度分析...</p>
+            <div class="relative inline-block">
+                <div class="h-16 w-16 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <div class="h-8 w-8 rounded-full border-4 border-transparent border-t-amber-400 animate-spin-reverse"></div>
+                </div>
+            </div>
+            <p class="mt-6 text-indigo-950 font-bold text-lg animate-pulse">正在解析結構並進行深度分析...</p>
         </div>
     </div>
 
     <script>
-        const TARGET_COLS = ['Item', 'Part', 'Qty', 'ExQty', 'UOM', 'CE', 'Rev', 'Critical', 'Mfr Part No', 'Mfr Name', 'Item Text'];
+        const TARGET_COLS = ['Part', 'Qty', 'ExQty', 'UOM', 'CE', 'Rev', 'Critical', 'Mfr Part No', 'Mfr Name', 'Item Text'];
         let compareResults = [];
         let rootInfo = { oldRoot: null, newRoot: null };
 
+        // 解析 Level 深度 (例如 "1.2" -> depth 1)
         function parseLevel(str) {
             const s = String(str || "").trim();
             const dotCount = (s.match(/\./g) || []).length;
             const depth = dotCount / 2;
             const val = s.replace(/[\s\.]/g, '');
             return { depth, val: parseInt(val) || 0, raw: s };
+        }
+
+        // 取得料號前綴 (用於模糊比對)
+        function getPrefix(part) {
+            const s = String(part || "").trim();
+            const lastDash = s.lastIndexOf('-');
+            return lastDash === -1 ? s : s.substring(0, lastDash);
+        }
+
+        function normItem(item) {
+            const s = String(item || "").trim();
+            const n = parseInt(s);
+            return isNaN(n) ? s : String(n);
         }
 
         function normalizeData(data) {
@@ -161,8 +188,6 @@
             data.forEach(row => {
                 const lv = parseLevel(row.Level);
                 const node = { ...row, _lv: lv, children: [] };
-                
-                // 找到正確的父節點
                 while (stack.length > 1 && stack[stack.length - 1]._lv.depth >= lv.depth) {
                     stack.pop();
                 }
@@ -173,57 +198,55 @@
         }
 
         async function readExcel(file) {
-            return new Promise((resolve, reject) => {
+            return new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    try {
-                        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-                        resolve(normalizeData(json));
-                    } catch (err) { reject(err); }
+                    const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+                    resolve(normalizeData(json));
                 };
-                reader.onerror = reject;
                 reader.readAsArrayBuffer(file);
             });
         }
 
         function compareNodes(list1, list2, results) {
-            const matched1 = new Set();
             const matched2 = new Set();
+            const matched1 = new Set();
 
-            // 1. 第一輪：嚴格匹配 (Item + Part Number 皆同)
+            // 1. 精確匹配 (Item + Full Part Number)
             list2.forEach((n2, idx2) => {
                 const n1Idx = list1.findIndex((n1, idx1) => 
                     !matched1.has(idx1) && 
-                    String(n1.Item).trim() === String(n2.Item).trim() && 
+                    normItem(n1.Item) === normItem(n2.Item) && 
                     String(n1.Part).trim() === String(n2.Part).trim()
                 );
                 if (n1Idx !== -1) {
-                    matched1.add(n1Idx);
                     matched2.add(idx2);
-                    checkChanges(list1[n1Idx], n2, results);
-                    compareNodes(list1[n1Idx].children, n2.children, results);
+                    matched1.add(n1Idx);
+                    const n1 = list1[n1Idx];
+                    checkChanges(n1, n2, results);
+                    compareNodes(n1.children, n2.children, results);
                 }
             });
 
-            // 2. 第二輪：寬鬆匹配 (Item 不同，但 Part Number 同) -> 視為變更
+            // 2. 模糊匹配 (Item + Part Prefix) -> 判定為變更
             list2.forEach((n2, idx2) => {
                 if (matched2.has(idx2)) return;
                 const n1Idx = list1.findIndex((n1, idx1) => 
                     !matched1.has(idx1) && 
-                    String(n1.Part).trim() === String(n2.Part).trim()
+                    normItem(n1.Item) === normItem(n2.Item) && 
+                    getPrefix(n1.Part) === getPrefix(n2.Part)
                 );
                 if (n1Idx !== -1) {
-                    matched1.add(n1Idx);
                     matched2.add(idx2);
-                    // 這裡 checkChanges 會自動抓出 Item 欄位的差異
-                    checkChanges(list1[n1Idx], n2, results);
-                    compareNodes(list1[n1Idx].children, n2.children, results);
+                    matched1.add(n1Idx);
+                    const n1 = list1[n1Idx];
+                    checkChanges(n1, n2, results);
+                    compareNodes(n1.children, n2.children, results);
                 }
             });
 
-            // 3. 處理剩餘的新增與刪除
+            // 3. 剩餘為新增
             list2.forEach((n2, idx2) => {
                 if (!matched2.has(idx2)) {
                     results.push({ type: '新增', data: n2 });
@@ -231,6 +254,7 @@
                 }
             });
 
+            // 4. 剩餘為刪除
             list1.forEach((n1, idx1) => {
                 if (!matched1.has(idx1)) {
                     results.push({ type: '刪除', data: n1 });
@@ -269,7 +293,11 @@
         document.getElementById('compareBtn').addEventListener('click', async () => {
             const f1 = document.getElementById('file1').files[0];
             const f2 = document.getElementById('file2').files[0];
-            if (!f1 || !f2) return showMessage("請選擇兩個檔案進行比對");
+            
+            if (!f1 || !f2) {
+                showMessage("請先選擇基準與目標兩個 BOM 檔案");
+                return;
+            }
 
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
@@ -296,7 +324,7 @@
                 document.getElementById('exportBtn').classList.remove('hidden');
             } catch (e) {
                 console.error(e);
-                showMessage("比對過程發生錯誤，請確認檔案內容。");
+                showMessage("比對過程發生錯誤，請檢查檔案格式。");
                 document.getElementById('loader').classList.add('hidden');
             }
         });
@@ -307,7 +335,7 @@
             let c = { '新增': 0, '刪除': 0, '變更': 0 };
 
             if (data.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" class="py-32 text-center text-slate-400 font-medium italic">未偵測到任何關鍵欄位變更。</td></tr>';
+                body.innerHTML = '<tr><td colspan="5" class="py-32 text-center text-slate-400 font-medium italic">未偵測到任何關鍵欄位的變更。兩份 BOM 在結構與內容上完全一致。</td></tr>';
                 return;
             }
 
@@ -318,16 +346,19 @@
                 
                 let detail = "";
                 if (res.type === '變更') {
-                    detail = res.diffs.map(d => `
-                        <div class="flex items-center gap-2 mb-1.5 p-2 rounded-lg text-[11px] bg-white/60 border border-slate-100">
-                            <span class="w-24 text-slate-400 shrink-0 uppercase font-bold">${d.col}</span>
-                            <span class="text-slate-400 line-through truncate max-w-[150px]">${d.v1 || '(null)'}</span>
-                            <span class="text-indigo-500 font-black">➔</span>
-                            <span class="text-indigo-900 font-bold">${d.v2 || '(null)'}</span>
-                        </div>
-                    `).join('');
+                    detail = res.diffs.map(d => {
+                        const isHighPriority = d.col.includes('Mfr') || d.col === 'Part';
+                        return `
+                            <div class="flex items-center gap-2 mb-1.5 p-2 rounded-lg text-[11px] ${isHighPriority ? 'bg-indigo-50/50 border-l-2 border-indigo-500 font-bold' : 'bg-white/60 border border-slate-100'}">
+                                <span class="w-24 text-slate-400 shrink-0 uppercase tracking-tighter">${d.col}</span>
+                                <span class="text-slate-400 line-through truncate max-w-[150px]">${d.v1 || '(null)'}</span>
+                                <span class="text-indigo-500 font-black">➔</span>
+                                <span class="text-indigo-900 font-bold">${d.v2 || '(null)'}</span>
+                            </div>
+                        `;
+                    }).join('');
                 } else {
-                    detail = `<span class="text-xs ${res.type==='新增'?'text-green-600':'text-red-600'} font-bold italic opacity-70">${res.type === '新增' ? '✚ New entry in target' : '✘ Removed from baseline'}</span>`;
+                    detail = `<span class="text-xs ${res.type==='新增'?'text-green-600':'text-red-600'} font-bold italic opacity-70">${res.type === '新增' ? '✚ New component introduced in target' : '✘ Component removed from baseline'}</span>`;
                 }
 
                 const indentLevel = res.data._lv.depth;
@@ -350,7 +381,7 @@
                                     <span class="text-[10px] bg-slate-200/50 px-1.5 py-0.5 rounded text-slate-600 font-mono font-bold">${res.data.Level}</span>
                                     <span class="font-black text-slate-900 tracking-tight text-base">${res.data.Part}</span>
                                 </div>
-                                <div class="text-[11px] text-slate-500 font-medium">${res.data['Item Text'] || ''}</div>
+                                <div class="text-[11px] text-slate-500 font-medium">${res.data['Item Text'] || '(無說明)'}</div>
                             </div>
                         </div>
                     </td>
@@ -370,50 +401,35 @@
         document.getElementById('exportBtn').addEventListener('click', () => {
             if (compareResults.length === 0) return;
 
-            // 決定檔名：包含料號與版本
-            let filename = "BOM_Comparison_Result.xlsx";
+            let filename = "BOM_Comparison_Report.xlsx";
             const { oldRoot, newRoot } = rootInfo;
-            
             if (oldRoot && newRoot) {
-                const oldP = String(oldRoot.Part || "Unknown").trim();
-                const newP = String(newRoot.Part || "Unknown").trim();
-                const oldR = oldRoot.Rev ? `(${oldRoot.Rev})` : "";
-                const newR = newRoot.Rev ? `(${newRoot.Rev})` : "";
-
-                if (oldP === newP) {
-                    // 同料號不同版本
-                    filename = `${oldP}${oldR}進版${newR}.xlsx`;
-                } else {
-                    // 不同料號對比
-                    filename = `${oldP}${oldR}_VS_${newP}${newR}.xlsx`;
-                }
+                const oldPart = String(oldRoot.Part).trim();
+                const newPart = String(newRoot.Part).trim();
+                filename = oldPart === newPart 
+                    ? `${oldPart}_Rev${oldRoot.Rev}_to_Rev${newRoot.Rev}.xlsx`
+                    : `${oldPart}_v_${newPart}.xlsx`;
             }
 
-            // 準備導出的資料格式
             const exportData = compareResults.map(r => {
                 let diffText = r.type;
                 if (r.type === '變更') {
                     diffText = r.diffs.map(d => `${d.col}: ${d.v1} -> ${d.v2}`).join(' | ');
                 }
                 return {
-                    "狀態": r.type,
+                    "Status": r.type,
                     "Level": r.data.Level,
                     "Item": r.data.Item,
                     "Part Number": r.data.Part,
-                    "Item Text": r.data['Item Text'] || '',
                     "Parent": r.data.Parent,
-                    "變更詳情": diffText
+                    "Details": diffText
                 };
             });
 
-            // 建立活頁簿
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(exportData);
-
-            // 設定寬度
-            ws['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 80 }];
-
-            XLSX.utils.book_append_sheet(wb, ws, "Diff Results");
+            ws['!cols'] = [{ wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 25 }, { wch: 25 }, { wch: 80 }];
+            XLSX.utils.book_append_sheet(wb, ws, "Comparison Results");
             XLSX.writeFile(wb, filename);
         });
     </script>
