@@ -418,7 +418,12 @@
             padding: 32px;
             transform-origin: center;
             user-select: none;
-            will-change: transform;
+        }
+
+        /* 確保 Mermaid 產出的 SVG 能夠完整延展，不被強制縮小 */
+        .mermaid svg {
+            max-width: none !important;
+            height: auto !important;
         }
 
         #zoom-indicator {
@@ -721,9 +726,14 @@
                 視覺化流程圖
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-                <div class="pan-badge">
+                <div class="pan-badge" style="display: none;">
                     <i class="fa-solid fa-arrows-up-down-left-right"></i> 拖曳平移 · 滾輪縮放
                 </div>
+                <!-- 新增：佈局方向選擇器 -->
+                <select id="layoutDirectionSelect" class="select-styled" style="width: auto; padding: 4px 8px;" title="選擇流程圖排列方向">
+                    <option value="TD">直式排列</option>
+                    <option value="LR">橫式排列</option>
+                </select>
                 <button id="exportPngBtn" class="btn btn-blue" disabled>
                     <i class="fa-solid fa-camera"></i> 下載圖片
                 </button>
@@ -810,6 +820,7 @@ mermaid.initialize({
     startOnLoad: false,
     theme: 'default',
     securityLevel: 'loose',
+    useMaxWidth: false, /* 關閉最大寬度限制，維持原始大小 */
     flowchart: { htmlLabels: true }
 });
 
@@ -823,6 +834,7 @@ const nodeDatalist = document.getElementById('node-datalist');
 const exportPngBtn = document.getElementById('exportPngBtn');
 const excelFileInput = document.getElementById('excelFileInput');
 const zoomIndicator = document.getElementById('zoom-indicator');
+const layoutDirectionSelect = document.getElementById('layoutDirectionSelect');
 
 let currentNodesList = [];
 let globalNodeInfos = {};
@@ -830,6 +842,7 @@ let hasGeneratedChart = false;
 let selectedNodeForBranch = null;
 let isDraggingChart = false;
 let currentTemplateName = '';
+let chartDirection = 'TD'; // 預設直式排列
 
 let translateX = 0, translateY = 0;
 let lastTX = 0, lastTY = 0;
@@ -932,14 +945,12 @@ function refreshRowNumbers() {
     });
 }
 
-// FIX: 改用 'change' 事件，避免在輸入字元時不斷刷新 datalist 導致下拉視窗閃退
 function setupRowInputListeners(tr) {
     tr.querySelectorAll('.group-val, .from-val, .to-val').forEach(input => {
         input.addEventListener('change', updateAllDataLists);
     });
 }
 
-// FIX: 加入 diff 邏輯，只有內容真的有變時才抽換 DOM，提升 Datalist 顯示穩定性
 function updateAllDataLists() {
     const groups = new Set();
     const nodes = new Set();
@@ -958,7 +969,7 @@ function updateAllDataLists() {
         const oldArr = Array.from(datalist.options).map(opt => opt.value);
         
         if (newArr.length === oldArr.length && newArr.every(val => oldArr.includes(val))) {
-            return; // 沒有改變就不重繪
+            return;
         }
 
         datalist.innerHTML = '';
@@ -1119,7 +1130,8 @@ document.getElementById('exportDataBtn').addEventListener('click', () => {
 function generateMermaidSyntax(dataArray) {
     if (!dataArray.length) return '';
 
-    let syntax = 'graph TD\n';
+    // 使用 chartDirection 變數決定排列方向 (TD 或 LR)
+    let syntax = `graph ${chartDirection}\n`;
     syntax += 'classDef process fill:#ffffff,stroke:#5b6af0,stroke-width:2px,color:#1a1d2e,rx:8,ry:8;\n';
     syntax += 'classDef startEnd fill:#5b6af0,stroke:#4451d4,stroke-width:2px,color:#ffffff,rx:28,ry:28;\n';
     syntax += 'classDef decision fill:#fef9c3,stroke:#ca8a04,stroke-width:2px,color:#78350f;\n';
@@ -1244,6 +1256,14 @@ async function renderFlowchart() {
 
 document.getElementById('generateBtn').addEventListener('click', renderFlowchart);
 
+// 監聽佈局方向選擇器的變化
+layoutDirectionSelect.addEventListener('change', (e) => {
+    chartDirection = e.target.value;
+    if (hasGeneratedChart) {
+        renderFlowchart();
+    }
+});
+
 // ─────────────────────────────────────────
 // 7. Pan & Zoom
 // ─────────────────────────────────────────
@@ -1288,7 +1308,7 @@ window.addEventListener('mousemove', (e) => {
 chartWrapper.addEventListener('wheel', (e) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    scale = Math.min(3, Math.max(0.2, scale + delta));
+    scale = Math.min(10, Math.max(0.2, scale + delta));
     applyTransform();
     showZoomIndicator();
 }, { passive: false });
@@ -1311,7 +1331,7 @@ chartWrapper.addEventListener('touchmove', (e) => {
 
 chartWrapper.addEventListener('touchend', () => { lastTX = translateX; lastTY = translateY; });
 
-document.getElementById('zoomInBtn').addEventListener('click', () => { scale = Math.min(3, scale + 0.2); applyTransform(); showZoomIndicator(); });
+document.getElementById('zoomInBtn').addEventListener('click', () => { scale = Math.min(10, scale + 0.2); applyTransform(); showZoomIndicator(); });
 document.getElementById('zoomOutBtn').addEventListener('click', () => { scale = Math.max(0.2, scale - 0.2); applyTransform(); showZoomIndicator(); });
 document.getElementById('zoomResetBtn').addEventListener('click', () => {
     translateX = 0; translateY = 0; lastTX = 0; lastTY = 0; scale = 1;
@@ -1390,7 +1410,6 @@ templateSelect.addEventListener('change', (e) => {
     checkDeleteBtn();
     const val = e.target.value;
     
-    // 如果選擇了「選擇模板(空)」，則清空畫面
     if (!val) {
         currentTemplateName = '';
         inputTbody.innerHTML = '';
@@ -1398,7 +1417,6 @@ templateSelect.addEventListener('change', (e) => {
         refreshRowNumbers();
         updateAllDataLists();
         
-        // 隱藏圖表
         hasGeneratedChart = false;
         mermaidGraph.innerHTML = '';
         emptyState.style.display = 'flex';
@@ -1419,7 +1437,6 @@ templateSelect.addEventListener('change', (e) => {
     renderFlowchart();
 });
 
-// FIX: 修正刪除按鈕邏輯，確實移除選項、觸發畫面更新與清空
 deleteTemplateBtn.addEventListener('click', () => {
     const val = templateSelect.value;
     if (!val.startsWith('custom_')) return;
@@ -1428,21 +1445,16 @@ deleteTemplateBtn.addEventListener('click', () => {
         delete customTemplates[key];
         localStorage.setItem('workflowTableTemplates_A04', JSON.stringify(customTemplates));
         
-        // 1. 更新選單結構
         updateTemplateDropdown();
-        // 2. 將選單設定為預設（空）
         templateSelect.value = '';
         currentTemplateName = '';
-        // 3. 檢查按鈕顯示狀態
         checkDeleteBtn();
         
-        // 4. 清空表格顯示並給予視覺回饋
         inputTbody.innerHTML = '';
         appendEmptyRow();
         refreshRowNumbers();
         updateAllDataLists();
         
-        // 5. 隱藏圖表
         hasGeneratedChart = false;
         mermaidGraph.innerHTML = '';
         emptyState.style.display = 'flex';
