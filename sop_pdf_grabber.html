@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOP PDF 產品料號自動統計工具</title>
+  
+  <!-- Tailwind CSS 適用於精美現代化 UI 設計 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- FontAwesome 圖標 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js 適用於料號數量統計圖表 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- pdf.js 適用於前端瀏覽器直接解析 PDF 文字 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  
+  <!-- SheetJS (xlsx.full.min.js) 適用於前端直接產生並匯出真實的 Excel 檔案 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+    }
+    /* 隱藏預設的檔案上傳輸入框，使用自訂的拖曳區 */
+    .file-input-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+  <!-- 頂部導航列 -->
+  <header class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-lg py-4 px-6">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-white/10 rounded-lg">
+          <i class="fa-solid fa-file-invoice-dollar text-2xl text-amber-300"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-wide">SINBON SOP 料號自動化分析系統</h1>
+          <p class="text-xs text-blue-100 mt-0.5">免伺服器 • 100% 瀏覽器本地安全解析 • 快速產出 Excel</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-medium flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          本地安全運行中
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容區 -->
+  <main class="flex-grow max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+    
+    <!-- 說明與上傳區 -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- 使用說明與擷取規則 -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-circle-info text-blue-600"></i> 使用說明與規則
+          </h2>
+          <ul class="space-y-3.5 text-sm text-slate-600">
+            <li class="flex items-start gap-2.5">
+              <span class="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold mt-0.5">1</span>
+              <span>準備好可直接複製文字的 <strong>SOP PDF 檔案</strong>。</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold mt-0.5">2</span>
+              <span>將 PDF 拖曳至右側框中，或點擊框內選擇檔案。</span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold mt-0.5">3</span>
+              <span>系統會自動過濾各頁面，搜尋類似：<br>
+                <code class="bg-slate-100 text-rose-600 px-1.5 py-0.5 rounded font-mono text-xs font-bold">2.1 A4310017700Sx1 MILLING</code> 或<br>
+                <code class="bg-slate-100 text-rose-600 px-1.5 py-0.5 rounded font-mono text-xs font-bold">2.2 A02153557001Sx1 FIXED LABEL</code><br>
+                這樣的格式並自動拆解成「料號」、「數量 1」與「工序」。
+              </span>
+            </li>
+            <li class="flex items-start gap-2.5">
+              <span class="flex-shrink-0 w-5 h-5 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold mt-0.5">4</span>
+              <span>確認無誤後，即可點選 <strong>「匯出 Excel」</strong> 按鈕取得統計檔案。</span>
+            </li>
+          </ul>
+        </div>
+        
+        <div class="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-400">
+          <i class="fa-solid fa-shield-halved text-emerald-600 mr-1"></i> 本程式在您的瀏覽器沙盒中運作，檔案不會上傳到任何外部伺服器，保障公司機密資料不外洩。
+        </div>
+      </div>
+
+      <!-- 拖曳上傳區 -->
+      <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-center">
+        <div id="dropzone" class="border-2 border-dashed border-blue-200 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/30 transition-all rounded-xl p-8 text-center cursor-pointer flex flex-col items-center justify-center min-h-[260px]">
+          <input type="file" id="pdf-file-input" class="file-input-hidden" accept="application/pdf">
+          <div class="w-16 h-16 bg-blue-100/80 text-blue-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <i class="fa-solid fa-file-pdf text-3xl"></i>
+          </div>
+          <h3 class="text-md font-bold text-slate-800 mb-1">拖曳 SOP PDF 檔案至此處</h3>
+          <p class="text-xs text-slate-500 mb-4">或 補點擊此區域瀏覽電腦中的檔案</p>
+          <span class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition shadow-sm">
+            選擇 PDF 檔案
+          </span>
+          <p id="file-info" class="text-xs text-emerald-600 mt-4 font-medium hidden">
+            <i class="fa-solid fa-circle-check"></i> 已載入檔案: <span id="file-name-text"></span>
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 運行狀態指示燈與進度條 -->
+    <div id="status-container" class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 hidden">
+      <div class="flex justify-between items-center mb-2">
+        <span id="status-text" class="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <i class="fa-solid fa-spinner animate-spin text-blue-600"></i> 準備解析 PDF 檔案...
+        </span>
+        <span id="status-percent" class="text-xs font-bold text-blue-600 font-mono">0%</span>
+      </div>
+      <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+        <div id="status-progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- 數據概覽統計卡 (預設隱藏，上傳後顯示) -->
+    <div id="stats-grid" class="grid grid-cols-1 md:grid-cols-4 gap-4 hidden">
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex items-center gap-4">
+        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-xl">
+          <i class="fa-solid fa-file-lines"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400 font-medium">SOP 總頁數</p>
+          <h4 id="stat-total-pages" class="text-xl font-bold text-slate-800 font-mono">-</h4>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex items-center gap-4">
+        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center text-xl">
+          <i class="fa-solid fa-list-check"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400 font-medium">比對成功資料筆數</p>
+          <h4 id="stat-total-records" class="text-xl font-bold text-slate-800 font-mono">-</h4>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex items-center gap-4">
+        <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-xl">
+          <i class="fa-solid fa-cubes-stacked"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400 font-medium">不重複料號總數</p>
+          <h4 id="stat-unique-parts" class="text-xl font-bold text-slate-800 font-mono">-</h4>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200 flex items-center gap-4">
+        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-xl">
+          <i class="fa-solid fa-calculator"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400 font-medium">累計零件需求總量</p>
+          <h4 id="stat-total-qty" class="text-xl font-bold text-slate-800 font-mono">-</h4>
+        </div>
+      </div>
+    </div>
+
+    <!-- 數據報表、搜尋與匯出 -->
+    <div id="results-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hidden">
+      
+      <!-- 工具列：搜尋、統計圖切換、匯出 Excel -->
+      <div class="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4">
+        <div class="relative flex-grow max-w-md">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+            <i class="fa-solid fa-magnifying-glass text-sm"></i>
+          </span>
+          <input type="text" id="table-search" placeholder="搜尋料號、品名描述、頁碼..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400">
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <!-- 顯示/隱藏統計圖表 -->
+          <button id="btn-toggle-chart" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition flex items-center gap-2">
+            <i class="fa-solid fa-chart-pie"></i> <span>顯示分析圖表</span>
+          </button>
+          
+          <!-- 一鍵下載 Excel 按鈕 -->
+          <button id="btn-export-excel" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center gap-2">
+            <i class="fa-solid fa-file-excel"></i> 匯出 Excel 報表
+          </button>
+        </div>
+      </div>
+
+      <!-- 統計圖表展示區 (預設收闔) -->
+      <div id="chart-section" class="p-6 border-b border-slate-100 bg-slate-50/20 hidden">
+        <div class="max-w-3xl mx-auto">
+          <h4 class="text-sm font-bold text-slate-700 text-center mb-4">前 10 大佔比最高料號分析</h4>
+          <div class="relative h-64">
+            <canvas id="part-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- 資料表格區 -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-100/80 text-slate-600 text-xs uppercase tracking-wider font-bold border-b border-slate-200">
+              <th class="py-3 px-5 text-center w-16">項次</th>
+              <th class="py-3 px-5 text-center w-24">來源頁碼</th>
+              <th class="py-3 px-5 w-40">工作站控制點</th>
+              <th class="py-3 px-5">產品料號 (Part Number)</th>
+              <th class="py-3 px-5 text-right w-28">數量 (Qty)</th>
+              <th class="py-3 px-5">品名 / 工序描述</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-slate-100 text-sm text-slate-700">
+            <!-- 動態插入 -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 無資料時顯示的空狀態 -->
+      <div id="empty-state" class="py-12 px-4 text-center hidden">
+        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+          <i class="fa-solid fa-database text-xl"></i>
+        </div>
+        <p class="text-sm text-slate-500">查無符合篩選條件的料號資料。</p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 頁尾 -->
+  <footer class="bg-slate-900 text-slate-400 text-xs py-6 px-6 mt-12 border-t border-slate-800">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+      <div>
+        <p class="font-medium text-slate-300">信邦電子 SOP 專屬料號提取工具</p>
+        <p class="mt-1">基於 pdf.js 與 regex 分析核心技術開發，專注提升工務與物料核對效率。</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <span>版本 1.1.0</span>
+        <span class="w-1.5 h-1.5 bg-slate-700 rounded-full"></span>
+        <span class="flex items-center gap-1"><i class="fa-solid fa-code"></i> HTML5 純前端引擎</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 自訂提示對話視窗 (代替 browser alert) -->
+  <div id="alert-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white rounded-2xl max-w-sm w-full mx-4 overflow-hidden shadow-2xl border border-slate-100 transform scale-95 transition-transform duration-200">
+      <div class="p-6 text-center">
+        <div id="alert-icon-wrapper" class="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
+          <!-- 圖標動態插入 -->
+        </div>
+        <h3 id="alert-title" class="text-lg font-bold text-slate-900 mb-1">標題</h3>
+        <p id="alert-message" class="text-sm text-slate-500 leading-relaxed">內文訊息</p>
+      </div>
+      <div class="bg-slate-50 px-6 py-3.5 flex justify-center">
+        <button id="alert-close-btn" class="w-full sm:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition shadow-sm">
+          確定
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript 控制核心 -->
+  <script>
+    // 指定 pdf.js worker 的 CDN 路徑，以供多核心非同步解析使用
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    // 全域變數定義
+    let rawExtractedData = []; // 儲存最原始提取的所有料號資料
+    let currentFileName = "";  // 上傳的檔名
+    let partChart = null;      // 儲存 ChartJS 實體
+
+    // DOM 節點初始化
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('pdf-file-input');
+    const fileInfo = document.getElementById('file-info');
+    const fileNameText = document.getElementById('file-name-text');
+    
+    const statusContainer = document.getElementById('status-container');
+    const statusText = document.getElementById('status-text');
+    const statusPercent = document.getElementById('status-percent');
+    const statusProgressBar = document.getElementById('status-progress-bar');
+    
+    const statsGrid = document.getElementById('stats-grid');
+    const statTotalPages = document.getElementById('stat-total-pages');
+    const statTotalRecords = document.getElementById('stat-total-records');
+    const statUniqueParts = document.getElementById('stat-unique-parts');
+    const statTotalQty = document.getElementById('stat-total-qty');
+    
+    const resultsCard = document.getElementById('results-card');
+    const tableBody = document.getElementById('table-body');
+    const tableSearch = document.getElementById('table-search');
+    const emptyState = document.getElementById('empty-state');
+    
+    const btnToggleChart = document.getElementById('btn-toggle-chart');
+    const chartSection = document.getElementById('chart-section');
+    const btnExportExcel = document.getElementById('btn-export-excel');
+
+    // 初始化與檔案上傳事件綁定
+    window.addEventListener('DOMContentLoaded', () => {
+      // 點擊拖曳框觸發選擇檔案
+      dropzone.addEventListener('click', () => fileInput.click());
+
+      // 拖曳視覺回饋
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('border-blue-500', 'bg-blue-50/50');
+        }, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('border-blue-500', 'bg-blue-50/50');
+        }, false);
+      });
+
+      // 放開檔案時處理
+      dropzone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0 && files[0].type === 'application/pdf') {
+          handleFile(files[0]);
+        } else {
+          showModal("格式錯誤", "請上傳 PDF 檔案（副檔名為 .pdf）", "warning");
+        }
+      });
+
+      // 選擇檔案改變時處理
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleFile(e.target.files[0]);
+        }
+      });
+
+      // 搜尋輸入框即時過濾
+      tableSearch.addEventListener('input', () => {
+        renderTable(filterData(tableSearch.value));
+      });
+
+      // 開關統計圖表
+      btnToggleChart.addEventListener('click', () => {
+        chartSection.classList.toggle('hidden');
+        if (!chartSection.classList.contains('hidden')) {
+          btnToggleChart.querySelector('span').textContent = '收合分析圖表';
+          buildChart();
+        } else {
+          btnToggleChart.querySelector('span').textContent = '顯示分析圖表';
+        }
+      });
+
+      // 匯出 Excel
+      btnExportExcel.addEventListener('click', exportToExcel);
+    });
+
+    // 處理檔案解析核心
+    function handleFile(file) {
+      currentFileName = file.name;
+      fileInfo.classList.remove('hidden');
+      fileNameText.textContent = file.name;
+
+      // 重設 UI
+      statusContainer.classList.remove('hidden');
+      statsGrid.classList.add('hidden');
+      resultsCard.classList.add('hidden');
+      chartSection.classList.add('hidden');
+      btnToggleChart.querySelector('span').textContent = '顯示分析圖表';
+      tableSearch.value = "";
+      rawExtractedData = [];
+
+      updateProgress(0, "正在初始化 PDF 解析引擎...");
+
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const typedarray = new Uint8Array(this.result);
+        
+        // 載入 PDF
+        pdfjsLib.getDocument(typedarray).promise.then(async (pdf) => {
+          const numPages = pdf.numPages;
+          statTotalPages.textContent = numPages;
+          
+          let parsedRecords = [];
+          
+          // 逐頁提取文字
+          for (let i = 1; i <= numPages; i++) {
+            updateProgress(
+              Math.round((i / numPages) * 100), 
+              `正在讀取第 ${i} 頁 (共 ${numPages} 頁)...`
+            );
+            
+            try {
+              const page = await pdf.getPage(i);
+              const textContent = await page.getTextContent();
+              
+              // 合併該頁所有文字項目
+              let pageText = "";
+              let lastY = -1;
+              for (let item of textContent.items) {
+                // 如果是換行，加上換行符號
+                if (lastY !== -1 && Math.abs(item.transform[5] - lastY) > 5) {
+                  pageText += "\n";
+                }
+                pageText += item.str + " ";
+                lastY = item.transform[5];
+              }
+              
+              // 匹配文字規則
+              const lines = pageText.split('\n');
+              
+              // 正規表達式匹配：
+              // 規則說明：^\s*\d+\.\d+\s+  -> 開頭如 2.1 或 2.2
+              // ([A-Z0-9]{5,20})S?        -> 群組1：料號：5到20碼英文或數字(信邦料號通常結尾會有S或單純數字)
+              // (?:x|\s*Qty\s*:\s*|\s+)(\d+) -> 匹配 x1 或 Qty:1 或 數量
+              // \s+(.*)$                 -> 群組3：後面的工序說明/品名
+              const regex = /^\s*(\d+\.\d+)\s+([A-Z0-9]+)x(\d+)\s+(.*)$/i;
+
+              for (let line of lines) {
+                const cleanLine = line.trim();
+                const match = cleanLine.match(regex);
+                
+                if (match) {
+                  const workStation = match[1]; // 頁面上的 2.1/2.2 控制點
+                  const partNumber = match[2].toUpperCase(); // 產品料號
+                  const qty = parseInt(match[3], 10); // 數量
+                  const description = match[4].trim(); // 工序/品名描述
+                  
+                  parsedRecords.push({
+                    id: parsedRecords.length + 1,
+                    page: `第 ${i} 頁`,
+                    pageNum: i,
+                    station: workStation,
+                    partNo: partNumber,
+                    qty: qty,
+                    desc: description
+                  });
+                }
+              }
+            } catch (err) {
+              console.error(`解析第 ${i} 頁發生錯誤:`, err);
+            }
+          }
+
+          // 解析完畢
+          rawExtractedData = parsedRecords;
+          updateProgress(100, "解析完成！資料分析載入中...");
+          
+          setTimeout(() => {
+            statusContainer.classList.add('hidden');
+            displayResults();
+          }, 600);
+
+        }).catch(err => {
+          console.error("載入 PDF 錯誤:", err);
+          updateProgress(0, "");
+          statusContainer.classList.add('hidden');
+          showModal("載入失敗", "無法讀取該 PDF 檔案。請確定該 PDF 檔案未損毀且非加密保護的 PDF。", "error");
+        });
+      };
+      
+      fileReader.readAsArrayBuffer(file);
+    }
+
+    // 更新進度條
+    function updateProgress(percent, text) {
+      statusProgressBar.style.width = percent + '%';
+      statusPercent.textContent = percent + '%';
+      if (text) {
+        statusText.innerHTML = `<i class="fa-solid fa-spinner animate-spin text-blue-600"></i> ${text}`;
+      }
+    }
+
+    // 顯示分析結果與更新面板
+    function displayResults() {
+      if (rawExtractedData.length === 0) {
+        showModal(
+          "未偵測到相符料號", 
+          "雖然檔案讀取成功，但未能在 PDF 中找到符合「2.1 [料號]x[數量] [品名]」格式的行。請確認此 PDF 是否屬於此類 SOP，或是它是掃描型 PDF 圖檔（無法複製文字）。", 
+          "warning"
+        );
+        return;
+      }
+
+      // 1. 計算小卡統計數據
+      statTotalRecords.textContent = rawExtractedData.length;
+      
+      const uniqueParts = new Set(rawExtractedData.map(item => item.partNo));
+      statUniqueParts.textContent = uniqueParts.size;
+      
+      const totalQty = rawExtractedData.reduce((acc, cur) => acc + cur.qty, 0);
+      statTotalQty.textContent = totalQty;
+
+      // 2. 顯示相關網頁區塊
+      statsGrid.classList.remove('hidden');
+      resultsCard.classList.remove('hidden');
+
+      // 3. 渲染網頁表格
+      renderTable(rawExtractedData);
+    }
+
+    // 根據關鍵字過濾資料
+    function filterData(keyword) {
+      if (!keyword) return rawExtractedData;
+      const kw = keyword.toLowerCase().trim();
+      return rawExtractedData.filter(item => {
+        return item.partNo.toLowerCase().includes(kw) || 
+               item.desc.toLowerCase().includes(kw) || 
+               item.page.toLowerCase().includes(kw) ||
+               item.station.toLowerCase().includes(kw);
+      });
+    }
+
+    // 渲染 HTML 表格
+    function renderTable(dataList) {
+      tableBody.innerHTML = "";
+      
+      if (dataList.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      
+      emptyState.classList.add('hidden');
+
+      dataList.forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.className = index % 2 === 1 ? 'bg-slate-50/50 hover:bg-slate-100/80 transition-colors' : 'hover:bg-slate-100/80 transition-colors';
+        row.innerHTML = `
+          <td class="py-3.5 px-5 text-center font-mono text-xs text-slate-400">${item.id}</td>
+          <td class="py-3.5 px-5 text-center font-mono text-xs font-medium text-blue-600">${item.page}</td>
+          <td class="py-3.5 px-5 font-mono text-xs text-slate-500">${item.station}</td>
+          <td class="py-3.5 px-5 font-mono font-bold text-slate-900 tracking-wider">${item.partNo}</td>
+          <td class="py-3.5 px-5 text-right font-mono font-bold text-slate-900 pr-8">${item.qty}</td>
+          <td class="py-3.5 px-5 text-xs text-slate-600 font-medium">${item.desc}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    // 建立/更新統計圖表
+    function buildChart() {
+      // 統計不重複料號的加總數量
+      const partCounts = {};
+      rawExtractedData.forEach(item => {
+        partCounts[item.partNo] = (partCounts[item.partNo] || 0) + item.qty;
+      });
+
+      // 排序前 10 大
+      const sortedParts = Object.entries(partCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+
+      const labels = sortedParts.map(x => x[0]);
+      const dataValues = sortedParts.map(x => x[1]);
+
+      if (partChart) {
+        partChart.destroy(); // 銷毀舊圖表，防止重繪衝突
+      }
+
+      const ctx = document.getElementById('part-part-chart');
+      
+      // 動態建立 Canvas
+      const canvasContainer = chartSection.querySelector('.relative');
+      canvasContainer.innerHTML = '<canvas id="part-chart"></canvas>';
+      const newCtx = document.getElementById('part-chart').getContext('2d');
+
+      partChart = new Chart(newCtx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '累計零件數量',
+            data: dataValues,
+            backgroundColor: [
+              'rgba(37, 99, 235, 0.8)',
+              'rgba(79, 70, 229, 0.8)',
+              'rgba(124, 58, 237, 0.8)',
+              'rgba(194, 65, 12, 0.8)',
+              'rgba(13, 148, 136, 0.8)',
+              'rgba(8, 145, 178, 0.8)',
+              'rgba(219, 39, 119, 0.8)',
+              'rgba(220, 38, 38, 0.8)',
+              'rgba(217, 119, 6, 0.8)',
+              'rgba(75, 85, 99, 0.8)'
+            ],
+            borderColor: 'transparent',
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 匯出功能：生成專業 Excel 檔案
+    function exportToExcel() {
+      if (rawExtractedData.length === 0) return;
+
+      // 1. 整理基本工作表 (SOP 明細資料)
+      const excelRows = rawExtractedData.map(item => ({
+        "項次": item.id,
+        "來源頁碼": item.page,
+        "工作站控制點": item.station,
+        "產品料號 (Part Number)": item.partNo,
+        "數量 (Qty)": item.qty,
+        "品名 / 工序描述": item.desc
+      }));
+
+      // 2. 整理摘要工作表 (按料號加總合併統計)
+      const summaryMap = {};
+      rawExtractedData.forEach(item => {
+        if (!summaryMap[item.partNo]) {
+          summaryMap[item.partNo] = {
+            "產品料號 (Part Number)": item.partNo,
+            "累計總數量 (Total Qty)": 0,
+            "出現在頁碼": [],
+            "代表性品名描述": item.desc
+          };
+        }
+        summaryMap[item.partNo]["累計總數量 (Total Qty)"] += item.qty;
+        if (!summaryMap[item.partNo]["出現在頁碼"].includes(item.page)) {
+          summaryMap[item.partNo]["出現在頁碼"].push(item.page);
+        }
+      });
+
+      const excelSummaryRows = Object.values(summaryMap).map((item, index) => ({
+        "項次": index + 1,
+        "產品料號 (Part Number)": item["產品料號 (Part Number)"],
+        "累計總數量 (Total Qty)": item["累計總數量 (Total Qty)"],
+        "出現在頁碼": item["出現在頁碼"].join(', '),
+        "品名規格描述": item["代表性品名描述"]
+      }));
+
+      // 3. 建立活頁簿
+      const wb = XLSX.utils.book_new();
+
+      // 建立明細頁並轉換
+      const wsDetail = XLSX.utils.json_to_sheet(excelRows);
+      XLSX.utils.book_append_sheet(wb, wsDetail, "SOP料號明細");
+
+      // 建立加總摘要頁並轉換
+      const wsSummary = XLSX.utils.json_to_sheet(excelSummaryRows);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "不重複料號彙總統計");
+
+      // 4. 設定欄寬自我調節 (防文字被遮擋)
+      [wsDetail, wsSummary].forEach(ws => {
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        const colWidths = [];
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          let maxLen = 10;
+          for (let R = range.s.r; R <= range.e.r; ++R) {
+            const cell_address = { c: C, r: R };
+            const cell_ref = XLSX.utils.encode_cell(cell_address);
+            const cell = ws[cell_ref];
+            if (cell && cell.v) {
+              const valStr = String(cell.v);
+              // 雙位元字元(中文)長度計為 2，英文 1
+              const cellLen = valStr.split('').reduce((acc, char) => acc + (char.charCodeAt(0) > 255 ? 2 : 1), 0);
+              if (cellLen > maxLen) maxLen = cellLen;
+            }
+          }
+          colWidths.push({ wch: maxLen + 3 });
+        }
+        ws['!cols'] = colWidths;
+      });
+
+      // 5. 下載檔案
+      const safeName = currentFileName.replace(/\.[^/.]+$/, ""); // 去掉原副檔名
+      const exportName = `SOP_料號統計_${safeName}.xlsx`;
+      
+      XLSX.writeFile(wb, exportName);
+      
+      showModal(
+        "匯出成功", 
+        `已成功產生並匯出 ${exportName} 檔案！工作簿內包含「SOP料號明細」與「不重複料號彙總統計」兩個工作表，方便您的備料對帳。`, 
+        "success"
+      );
+    }
+
+    // 自訂對話框 (Modal alert) 控制
+    function showModal(title, message, type = "success") {
+      const modal = document.getElementById('alert-modal');
+      const modalTitle = document.getElementById('alert-title');
+      const modalMessage = document.getElementById('alert-message');
+      const iconWrapper = document.getElementById('alert-icon-wrapper');
+      
+      modalTitle.textContent = title;
+      modalMessage.textContent = message;
+
+      // 根據類型變更圖標與顏色
+      if (type === "success") {
+        iconWrapper.className = "w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 bg-emerald-50 text-emerald-500 text-2xl";
+        iconWrapper.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+      } else if (type === "error") {
+        iconWrapper.className = "w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 bg-rose-50 text-rose-500 text-2xl";
+        iconWrapper.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
+      } else { // warning
+        iconWrapper.className = "w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 bg-amber-50 text-amber-500 text-2xl";
+        iconWrapper.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+      }
+
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        modal.classList.add('opacity-100');
+        modal.querySelector('.transform').classList.remove('scale-95');
+        modal.querySelector('.transform').classList.add('scale-100');
+      }, 50);
+
+      // 綁定關閉
+      const closeBtn = document.getElementById('alert-close-btn');
+      const closeModal = () => {
+        modal.classList.remove('opacity-100');
+        modal.querySelector('.transform').classList.remove('scale-100');
+        modal.querySelector('.transform').classList.add('scale-95');
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 150);
+      };
+      
+      closeBtn.onclick = closeModal;
+    }
+  </script>
+</body>
+</html>
